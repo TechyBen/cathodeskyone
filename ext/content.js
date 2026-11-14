@@ -117,12 +117,12 @@
     sendContext();
   }
 
-  // --- zoom: + into a post's thread, - back out, then round the feeds -----
-  // The terminal's +/- drive Bluesky itself, so its list is always what
-  // Bluesky would show: + opens the selected post's thread (and a reply's
-  // thread from there), - goes back the way it came, back to the home feed,
-  // and on the home feed moves to the next feed tab (Following, Discover,
-  // your pinned feeds) round and round.
+  // --- zoom: into a post's thread and back out; round the feed tabs -------
+  // The terminal drives Bluesky itself, so its list is always what Bluesky
+  // would show. Zooming in opens a post's thread (clicking the main frame,
+  // or + on a reply inside a thread); zooming out goes back the way it came,
+  // to the home feed. On the home feed, + and - move to the next or previous
+  // feed tab (Following, Discover, your pinned feeds), round and round.
   let depth = 0, lastContext = '', zoomTimer = 0;
   const feedTabs = () => [...document.querySelectorAll('[data-testid^="homeScreenFeedTabs-selector-"][role="tab"]')]
     .filter(t => shown(t) && !/^feeds\b/i.test(t.textContent.trim()));
@@ -141,7 +141,7 @@
   function sendContext() {
     const path = location.pathname;
     let c;
-    if (POST_PATH.test(path)) c = { kind: 'thread', depth: Math.max(1, depth) };
+    if (POST_PATH.test(path)) c = { kind: 'thread', depth: Math.max(1, depth), rkey: path.match(POST_PATH)[2] };
     else if (path === '/') {
       const tabs = feedTabs();
       c = { kind: 'feed', name: tabs.length ? tabs[currentTab(tabs)].textContent.trim() : 'HOME' };
@@ -173,6 +173,7 @@
   function zoom(m) {
     if (m.dir > 0) {
       if (!/^did:[a-z]+:[\w.:%-]+$/.test(m.did) || !/^[\w.~:-]+$/.test(m.rkey)) return;
+      if (anchorKey().endsWith(`/${m.rkey}`)) return;   // already in that thread
       depth++;
       go(`/profile/${m.did}/post/${m.rkey}`);
       afterZoom(true);
@@ -186,13 +187,15 @@
       depth = 0;
       go('/');
       afterZoom(false);
-    } else {
-      const tabs = feedTabs();
-      if (tabs.length < 2) return;
-      tabs[(currentTab(tabs) + 1) % tabs.length].click();
-      // The new tab's feed may still be loading.
-      setTimeout(() => afterZoom(false), 400);
     }
+  }
+  function nextTab(dir) {
+    if (location.pathname !== '/') return;
+    const tabs = feedTabs();
+    if (tabs.length < 2) return;
+    tabs[(currentTab(tabs) + (dir > 0 ? 1 : tabs.length - 1)) % tabs.length].click();
+    // The new tab's feed may still be loading.
+    setTimeout(() => afterZoom(false), 400);
   }
 
   // The post under the mouse, shown only once the mouse has rested on it for
@@ -291,6 +294,7 @@
     if (m?.type === 'cathodesky:ready') onReady();
     else if (m?.type === 'cathodesky:leave') setFull(false);
     else if (m?.type === 'cathodesky:zoom' && full) zoom(m);
+    else if (m?.type === 'cathodesky:tab' && full) nextTab(m.dir);
     else if (m?.type === 'cathodesky:open' && /^did:[a-z]+:[\w.:%-]+$/.test(m.did) && /^[\w.~:-]+$/.test(m.rkey)) {
       setFull(false);
       openThread(m.did, m.rkey, typeof m.handle === 'string' ? m.handle : '');
@@ -517,6 +521,6 @@
   } else {
     Object.assign(cfg, window.CATHODESKY_TEST_CFG || {});
     apply();
-    window.__cathodeskyTest = { stop, setFull, openThread, zoom, apply: c => { Object.assign(cfg, c); apply(Object.keys(c)); } };
+    window.__cathodeskyTest = { stop, setFull, openThread, zoom, nextTab, apply: c => { Object.assign(cfg, c); apply(Object.keys(c)); } };
   }
 })();

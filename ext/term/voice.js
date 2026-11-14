@@ -6,8 +6,11 @@
 // phonemes through the CMU dictionary, then to articulatory gestures) and the
 // AudioWorklet (voice/worklet.js) runs the airway.
 //
-// Each author gets their own body (male, female or child mix) and pitch from
-// a hash of their DID, so the same person always sounds the same. The voice
+// Who speaks (`who`): each author their own body (male, female or child mix)
+// and pitch from a hash of their DID, so the same person always sounds the
+// same; or voice A (adult male) or voice B (adult female) for every post.
+// Style: natural speech, or robotic: flat, steady pitch with no accents,
+// a touch slower (CHIMERA has no Vocaloid preset; this is the nearest). The voice
 // goes through a band-pass like a small monitor speaker. Its AudioContext is
 // suspended between posts, so the airway costs nothing while nobody speaks.
 
@@ -19,6 +22,8 @@ const enc = new TextEncoder(), dec = new TextDecoder();
 export class Voice {
   constructor() {
     this.on = true;
+    this.who = 'author';      // 'author', 'a' or 'b'
+    this.style = 'natural';   // or 'robotic'
     this.vol = 0.35;
     this.quiet = 1;
     this.loading = null;
@@ -28,8 +33,10 @@ export class Voice {
     this.current = '';
   }
 
-  set({ on, vol, quiet }) {
+  set({ on, vol, quiet, who, style }) {
     if (on !== undefined) this.on = on;
+    if (who !== undefined) this.who = who;
+    if (style !== undefined) this.style = style;
     if (vol !== undefined) this.vol = vol;
     if (quiet !== undefined) this.quiet = quiet;
     if (this.out) this.out.gain.setTargetAtTime(this.on ? this.vol * this.quiet * 1.1 : 0, this.ctx.currentTime, 0.1);
@@ -98,17 +105,21 @@ export class Voice {
     let h = 2166136261;
     for (const ch of who) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
     const pick = (h >>> 0) % 7;
-    const body = [{ female: 0, child: 0 }, { female: 1, child: 0 }, { female: 0.5, child: 0 }, { female: 0.2, child: 0 },
+    let body = [{ female: 0, child: 0 }, { female: 1, child: 0 }, { female: 0.5, child: 0 }, { female: 0.2, child: 0 },
       { female: 0.8, child: 0 }, { female: 0, child: 0.6 }, { female: 1, child: 0.3 }][pick];
-    const f0 = this.defaultF0 * (1 + body.female * 0.85 + body.child * 0.9) * (0.92 + ((h >>> 8) % 17) / 100);
+    let wobble = 0.92 + ((h >>> 8) % 17) / 100;
+    if (this.who === 'a') { body = { female: 0, child: 0 }; wobble = 1; }
+    if (this.who === 'b') { body = { female: 1, child: 0 }; wobble = 1; }
+    const f0 = this.defaultF0 * (1 + body.female * 0.85 + body.child * 0.9) * wobble;
+    const robotic = this.style === 'robotic';
     let plan;
     try {
       const phrases = this.call('g2pPhrases', { text: clean });
       if (!phrases.length) return;
       this.node.port.postMessage({ type: 'body', body });
       plan = this.call('planPhrases', {
-        phrases: phrases.map(p => ({ segments: p.segments, intonation: p.intonation, pause: p.pause })),
-        options: { body, t0: 0, rate: 1.05, f0 },
+        phrases: phrases.map(p => ({ segments: p.segments, intonation: robotic ? 'flat' : p.intonation, pause: p.pause })),
+        options: robotic ? { body, t0: 0, rate: 0.95, f0, intonation: 'flat', accent: 0 } : { body, t0: 0, rate: 1.05, f0 },
       });
     } catch { return; }
     await new Promise(r => setTimeout(r, delay * 1000));

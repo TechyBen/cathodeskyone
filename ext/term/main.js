@@ -29,11 +29,11 @@ const st = {
   col: null, light: false, W: 1000, H: 750,
   context: null,          // where Bluesky is: { kind: 'feed', name } or { kind: 'thread', depth }
 };
-const cfg = { glow: 55, lines: st.lines, fps: 20, sound: true, voice: true, vol: 35 };
+const cfg = { glow: 55, lines: st.lines, fps: 20, sound: true, voice: true, voiceWho: q.get('who') || 'author', voiceStyle: q.get('style') || 'natural', vol: 35 };
 const sound = new Sound();
 sound.set({ on: cfg.sound, vol: cfg.vol / 100, quiet: st.mode === 'full' ? 1 : 0.7 });
 const voice = new Voice();
-voice.set({ on: cfg.voice, vol: cfg.vol / 100, quiet: st.mode === 'full' ? 1 : 0.7 });
+voice.set({ on: cfg.voice, who: cfg.voiceWho, style: cfg.voiceStyle, vol: cfg.vol / 100, quiet: st.mode === 'full' ? 1 : 0.7 });
 let dirty = true, hits = { bars: [] };
 
 const buffer = document.createElement('canvas');
@@ -79,11 +79,21 @@ function busy() {
 }
 
 // --- the post list ------------------------------------------------------------
-// Zoom: + into the selected post's thread, - back out (Bluesky does the
-// navigating, see content.js). Coming back out, the post zoomed from is
-// selected again once it's in the list.
+// Zoom (Bluesky does the navigating, see content.js). On the home feed + and
+// - go round the feed tabs; clicking the main frame zooms into the shown
+// post's thread; in a thread + zooms into the selected reply's thread and -
+// backs out. Coming back out, the post zoomed from is selected again once
+// it's in the list.
 const zoomStack = [];
 let returnTo = '';
+function plusMinus(dir) {
+  if (st.mode !== 'full') return;
+  if (st.context?.kind === 'feed') {
+    send({ type: 'cathodesky:tab', dir });
+    voice.hush();
+    sound.wind(0.45);
+  } else zoom(dir);
+}
 function zoom(dir) {
   if (st.mode !== 'full') return;
   if (dir > 0) {
@@ -175,7 +185,7 @@ addEventListener('message', e => {
   else if (m?.type === 'cathodesky:posts' && Array.isArray(m.keys)) setKeys(m.keys.filter(k => typeof k === 'string'));
   else if (m?.type === 'cathodesky:select' && typeof m.key === 'string') select(m.key);
   else if (m?.type === 'cathodesky:context') {
-    st.context = { kind: String(m.kind), name: String(m.name || ''), depth: +m.depth || 0 };
+    st.context = { kind: String(m.kind), name: String(m.name || ''), depth: +m.depth || 0, rkey: String(m.rkey || '') };
     if (st.context.kind !== 'thread') zoomStack.length = 0;
     dirty = true;
   }
@@ -188,7 +198,7 @@ addEventListener('message', e => {
     Object.assign(cfg, m.cfg);
     st.lines = !!cfg.lines;
     sound.set({ on: !!cfg.sound, vol: (+cfg.vol || 0) / 100 });
-    voice.set({ on: !!cfg.voice, vol: (+cfg.vol || 0) / 100 });
+    voice.set({ on: !!cfg.voice, who: String(cfg.voiceWho), style: String(cfg.voiceStyle), vol: (+cfg.vol || 0) / 100 });
     dirty = true;
   }
 });
@@ -217,8 +227,9 @@ addEventListener('keydown', e => {
   else if (k === 'Home') { st.sel = 0; dirty = true; }
   else if (k === 'End') { st.sel = Math.max(0, st.keys.length - 1); dirty = true; }
   else if (k === 'KeyL') { st.lines = !st.lines; dirty = true; }
-  else if (k === 'Equal' || k === 'NumpadAdd') zoom(1);
-  else if (k === 'Minus' || k === 'NumpadSubtract') zoom(-1);
+  else if (k === 'Equal' || k === 'NumpadAdd') plusMinus(1);
+  else if (k === 'Minus' || k === 'NumpadSubtract') plusMinus(-1);
+  else if (k === 'Backspace') zoom(-1);
   else if (k === 'KeyQ') open(hits.cards?.find(c => c.quote));
   else if (k === 'Enter') {
     const p = st.feed.get(st.keys[st.sel]);
@@ -248,23 +259,34 @@ function open(t) {
 addEventListener('pointermove', e => {
   if (st.mode !== 'full') return;
   const [x, y] = toScreen(e);
-  const onZoom = hits.zoom?.some(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
-  document.body.style.cursor = onZoom || cardAt(x, y) ? 'pointer' : '';
+  const inside = b => b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h;
+  const onFrame = inside(hits.frame) && st.context?.kind !== 'thread' || inside(hits.frame) && !isAnchor();
+  document.body.style.cursor = hits.zoom?.some(inside) || cardAt(x, y) ? 'pointer' : onFrame ? 'zoom-in' : '';
 });
 addEventListener('pointerdown', e => {
   if (st.mode !== 'full') return;
   const [x, y] = toScreen(e);
   const z = hits.zoom?.find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
-  if (z) { zoom(z.dir); return; }
+  if (z) { plusMinus(z.dir); return; }
   const card = cardAt(x, y);
   if (card) { open(card); return; }
   for (const b of hits.bars) {
     if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
       st.sel = Math.min(st.keys.length - 1, b.first + Math.floor((y - b.y) / b.row));
       dirty = true;
+      return;
     }
   }
+  const f = hits.frame;
+  if (f && x >= f.x && x <= f.x + f.w && y >= f.y && y <= f.y + f.h && !isAnchor()) zoom(1);
 });
+
+// Is the shown post the open thread's own post? (Then there's nothing to
+// zoom into.)
+function isAnchor() {
+  const p = st.feed.get(st.keys[st.sel]);
+  return st.context?.kind === 'thread' && !!p && st.context.rkey === p.rkey;
+}
 
 // --- loop ------------------------------------------------------------------------
 let last = 0, readySent = false, blinkAt = 0;

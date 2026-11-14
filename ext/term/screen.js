@@ -328,13 +328,13 @@ function postPanel(post, x, y, w, h, s, lines, blink) {
   return main || quotePic || avPic;
 }
 
-// The zoom buttons, - and +, and where Bluesky is: which feed, or how deep
-// into threads.
+// The - and + buttons, and where Bluesky is: which feed (where they go round
+// the feed tabs), or how deep into threads (where they zoom).
 function zoomButtons(x, y, ctx, can, hits) {
   const bw = 30, bh = 24;
   [[-1, '-'], [1, '+']].forEach(([dir, label], i) => {
     const bx = x + i * (bw + 6);
-    const live = dir < 0 || can;
+    const live = ctx?.kind === 'feed' || dir < 0 || can;
     g.strokeStyle = live ? FG : FAINT;
     g.lineWidth = 1.5;
     g.strokeRect(bx + 0.5, y + 0.5, bw, bh);
@@ -393,6 +393,7 @@ export function draw(ctx, st) {
     wedge(8, 44, 40, 640, pic ? Math.round(Math.min(1, Math.max(0, (pic.mean - pic.lo) / (pic.hi - pic.lo))) * (LEVELS - 1)) : -1);
     const bx = 742, bw = 236;
     zoomButtons(bx, 68, st.context, !!post && !post.error && !post.demo, hits);
+    hits.frame = { x: 62, y: 44, w: 650, h: 640 };
     BARS.forEach(([label, field], i) => {
       hits.bars.push(barBox(bx, 122 + i * 194, bw, 146, label, field, keys, st.feed, sel, 16));
     });

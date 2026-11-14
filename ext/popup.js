@@ -6,7 +6,10 @@ chrome.storage.sync.get(CATHODESKY_DEFAULTS).then(cfg => {
     if (!el) continue;
     const out = document.querySelector(`output[for="${key}"]`);
     const show = () => { if (out) out.textContent = el.value + (UNITS[key] || ''); };
-    if (el.type === 'checkbox') {
+    if (el.tagName === 'SELECT') {
+      el.value = cfg[key];
+      el.addEventListener('change', () => chrome.storage.sync.set({ [key]: el.value }));
+    } else if (el.type === 'checkbox') {
       el.checked = cfg[key];
       el.addEventListener('change', () => chrome.storage.sync.set({ [key]: el.checked }));
     } else {
