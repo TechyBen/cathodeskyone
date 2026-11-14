@@ -4,7 +4,7 @@ A browser extension for [Bluesky](https://bsky.app): an old image-processing ter
 
 The little monitor button at the bottom right switches to the full terminal.
 
-A sibling of [skytreeone](https://github.com/TechyBen/skytreeone) (a forest behind Bluesky) and fightskyone (a sky to fly in).
+A sibling of [skytreeone](https://github.com/TechyBen/skytreeone) (a forest behind Bluesky) and [fightskyone](https://github.com/TechyBen/fightskyone) (a sky to fly in).
 
 ![The full terminal (demo posts)](docs/full.png)
 
