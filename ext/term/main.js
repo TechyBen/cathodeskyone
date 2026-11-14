@@ -188,6 +188,7 @@ addEventListener('keydown', e => {
   else if (k === 'Home') { st.sel = 0; dirty = true; }
   else if (k === 'End') { st.sel = Math.max(0, st.keys.length - 1); dirty = true; }
   else if (k === 'KeyL') { st.lines = !st.lines; dirty = true; }
+  else if (k === 'KeyQ') open(hits.cards?.find(c => c.quote));
   else if (k === 'Enter') {
     const p = st.feed.get(st.keys[st.sel]);
     if (p && !p.error && !p.demo) send({ type: 'cathodesky:open', did: p.did, rkey: p.rkey, handle: p.handle });
@@ -203,12 +204,26 @@ addEventListener('wheel', e => {
   while (Math.abs(wheelAcc) >= 60) { step(Math.sign(wheelAcc)); wheelAcc -= Math.sign(wheelAcc) * 60; }
 }, { passive: true });
 
-// Clicking a bar picks its post.
+// Clicking a bar picks its post; clicking a quote or a test card opens that
+// post on Bluesky.
+function toScreen(e) {
+  const dpr = view.width / innerWidth;
+  return [(e.clientX * dpr - rect.x) / rect.w * st.W, (e.clientY * dpr - (view.height - rect.y - rect.h)) / rect.h * st.H];
+}
+const cardAt = (x, y) => hits.cards?.findLast(c => x >= c.x && x <= c.x + c.w && y >= c.y && y <= c.y + c.h);
+function open(t) {
+  if (t && /^did:[a-z]+:/.test(t.did) && !t.did.startsWith('did:demo:')) send({ type: 'cathodesky:open', did: t.did, rkey: t.rkey, handle: t.handle || '' });
+}
+addEventListener('pointermove', e => {
+  if (st.mode !== 'full') return;
+  const [x, y] = toScreen(e);
+  document.body.style.cursor = cardAt(x, y) ? 'pointer' : '';
+});
 addEventListener('pointerdown', e => {
   if (st.mode !== 'full') return;
-  const dpr = view.width / innerWidth;
-  const x = (e.clientX * dpr - rect.x) / rect.w * st.W;
-  const y = (e.clientY * dpr - (view.height - rect.y - rect.h)) / rect.h * st.H;
+  const [x, y] = toScreen(e);
+  const card = cardAt(x, y);
+  if (card) { open(card); return; }
   for (const b of hits.bars) {
     if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
       st.sel = Math.min(st.keys.length - 1, b.first + Math.floor((y - b.y) / b.row));

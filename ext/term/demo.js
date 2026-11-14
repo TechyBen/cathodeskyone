@@ -18,7 +18,7 @@ const TEXTS = [
 
 export function demoPosts() {
   const now = Date.now();
-  return TEXTS.map(([name, text, imgs, likes, replies, reposts], i) => {
+  const posts = TEXTS.map(([name, text, imgs, likes, replies, reposts], i) => {
     const handle = `${name.toLowerCase().replace(/[^a-z]+/g, '-')}.demo`;
     return {
       key: `demo/${i}`, demo: true, did: `did:demo:${i}`, rkey: `3demo${String(i).padStart(8, '0')}`,
@@ -28,4 +28,11 @@ export function demoPosts() {
       reply: i === 10, images: imgs.map(k => ({ src: `demo:${k}`, alt: '' })),
     };
   });
+  // Quotes: a post with a picture, a feed, and one that's gone.
+  const q = posts[0];
+  posts[3].quote = { kind: 'post', did: q.did, rkey: q.rkey, handle: q.handle, name: q.name, text: q.text, images: q.images };
+  posts[4].quote = { kind: 'feed', did: 'did:demo:feeds', rkey: 'paint', title: 'Painters (demo)' };
+  posts[9].quote = { kind: 'missing' };
+  posts[11].quote = { kind: 'post', did: posts[2].did, rkey: posts[2].rkey, handle: posts[2].handle, text: '', images: [], nested: true };
+  return posts;
 }

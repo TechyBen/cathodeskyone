@@ -26,9 +26,35 @@ function media(embed) {
     const e = embed.external || {};
     return { images: e.thumb ? [{ src: e.thumb, alt: e.title || '' }] : [], link: { title: e.title || e.uri || '', uri: e.uri || '' } };
   }
-  if (t.startsWith('app.bsky.embed.recordWithMedia')) return { ...media(embed.media), quote: true };
-  if (t.startsWith('app.bsky.embed.record')) return { images: [], quote: true };
+  if (t.startsWith('app.bsky.embed.recordWithMedia')) return { ...media(embed.media), quote: quoted(embed.record?.record) };
+  if (t.startsWith('app.bsky.embed.record')) return { images: [], quote: quoted(embed.record) };
   return { images: [] };
+}
+
+// A quoted record: a post (its author, text and pictures), or something the
+// terminal only names (a feed, a list, a starter pack), or one that can't be
+// seen (deleted, blocked, detached).
+function quoted(r) {
+  if (!r) return { kind: 'missing' };
+  const t = r.$type || '';
+  const parts = (r.uri || '').split('/');
+  const base = { uri: r.uri || '', did: parts[2] || '', rkey: parts[4] || '' };
+  if (t.endsWith('#viewRecord')) {
+    const inner = media(r.embeds?.[0]);
+    return {
+      ...base, kind: 'post',
+      handle: r.author?.handle || '', name: r.author?.displayName || '',
+      text: r.value?.text || '', created: r.value?.createdAt || '',
+      images: inner.images, video: !!inner.video, link: inner.link, nested: !!inner.quote,
+    };
+  }
+  if (t.endsWith('#viewNotFound')) return { ...base, kind: 'missing' };
+  if (t.endsWith('#viewBlocked')) return { ...base, kind: 'blocked' };
+  if (t.endsWith('#viewDetached')) return { ...base, kind: 'detached' };
+  if (t.includes('generatorView')) return { ...base, kind: 'feed', title: r.displayName || '' };
+  if (t.includes('listView')) return { ...base, kind: 'list', title: r.name || '' };
+  if (t.includes('starterPack')) return { ...base, kind: 'starter pack', title: r.record?.name || '' };
+  return { ...base, kind: 'record' };
 }
 
 export function fromView(key, v) {

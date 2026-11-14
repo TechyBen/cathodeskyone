@@ -16,6 +16,8 @@ const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', '
 export const BARS = [['LIKES', 'likes'], ['REPLIES', 'replies'], ['REPOSTS', 'reposts']];
 
 let g = null;
+// Clickable test cards drawn this frame: where, and which post they open.
+let cards = [];
 
 function font(size, weight = '') { g.font = `${weight} ${Math.round(size)}px ${FONT}`; }
 function text(s, x, y, size, color = FG, align = 'left') {
@@ -150,8 +152,58 @@ function wrap(s, width, size, maxLines) {
   return out;
 }
 
+// A test card: what the terminal shows where it can't show the thing itself
+// (a picture that wouldn't load, a quoted post it can't see, a feed or a
+// list). Grid, a ring with a grey scale through it, a crosshair and a label.
+// In the full terminal it can be clicked to open the post on Bluesky.
+function testCard(x, y, w, h, label, sub, size, target) {
+  if (w < 20 || h < 20) return;
+  g.save();
+  g.beginPath(); g.rect(x, y, w, h); g.clip();
+  g.fillStyle = '#000'; g.fillRect(x, y, w, h);
+  const step = Math.max(8, h / 8);
+  g.strokeStyle = FAINT; g.lineWidth = 1;
+  g.beginPath();
+  for (let xx = x + (w / 2) % step; xx < x + w; xx += step) { g.moveTo(xx + 0.5, y); g.lineTo(xx + 0.5, y + h); }
+  for (let yy = y + (h / 2) % step; yy < y + h; yy += step) { g.moveTo(x, yy + 0.5); g.lineTo(x + w, yy + 0.5); }
+  g.stroke();
+  const cx = x + w / 2, cy = y + h / 2, r = Math.min(w, h) * 0.42;
+  g.save();
+  g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.clip();
+  const bars = 8, bw = (2 * r) / bars, bh = r * 0.55;
+  for (let i = 0; i < bars; i++) {
+    const v = Math.round(240 - i * 220 / (bars - 1));
+    g.fillStyle = `rgb(${v},${v},${v})`;
+    g.fillRect(cx - r + i * bw, cy - bh, bw + 0.5, bh);
+  }
+  g.fillStyle = '#000'; g.fillRect(cx - r, cy, 2 * r, r);
+  for (let i = 0; i < 6; i++) {
+    g.fillStyle = i % 2 ? '#000' : MID;
+    g.fillRect(cx - r + i * (2 * r / 6), cy + r * 0.3, 2 * r / 6 + 0.5, r * 0.12);
+  }
+  g.restore();
+  g.strokeStyle = FG; g.lineWidth = 1.5;
+  g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(cx - r * 1.15, cy + 0.5); g.lineTo(cx + r * 1.15, cy + 0.5);
+  g.moveTo(cx + 0.5, cy - r * 1.15); g.lineTo(cx + 0.5, cy + r * 1.15);
+  g.stroke();
+  font(size);
+  const tw = Math.min(w - 8, Math.max(g.measureText(label).width, sub ? g.measureText(sub).width * 0.8 : 0) + 16);
+  const th = sub ? size * 2.4 : size * 1.5, ty = Math.min(cy + r * 0.48, y + h - th - 3);
+  g.fillStyle = '#000'; g.fillRect(cx - tw / 2, ty, tw, th);
+  g.strokeStyle = FG; g.strokeRect(cx - tw / 2 + 0.5, ty + 0.5, tw, th);
+  text(wrap(label, tw - 8, size, 1)[0] || '', cx, ty + size * 1.1, size, FG, 'center');
+  if (sub) text(wrap(sub, tw - 8, size * 0.8, 1)[0] || '', cx, ty + size * 2.05, size * 0.8, MID, 'center');
+  g.restore();
+  g.strokeStyle = MID;
+  g.strokeRect(x + 0.5, y + 0.5, w, h);
+  if (target) cards.push({ x, y, w, h, ...target });
+}
+
 // A picture in its line-bound box, fitted to the box with chunky pixels.
-function pictureBox(src, x, y, w, h, lines, size, blink) {
+function pictureBox(src, x, y, w, h, lines, size, blink, target) {
   g.strokeStyle = MID;
   g.lineWidth = 1;
   g.strokeRect(x + 0.5, y + 0.5, w, h);
@@ -163,6 +215,10 @@ function pictureBox(src, x, y, w, h, lines, size, blink) {
   }
   g.stroke();
   const p = src ? picture(src) : { state: 'none' };
+  if (p.state === 'error' && target) {
+    testCard(x + 2, y + 2, w - 4, h - 4, 'NO SIGNAL', 'CLICK TO OPEN POST', size, target);
+    return null;
+  }
   if (p.state !== 'ok') {
     const msg = p.state === 'loading' ? `SCANNING${blink ? '_' : ' '}` : p.state === 'none' ? 'NO IMAGE' : 'NO SIGNAL';
     text(msg, x + w / 2, y + h / 2 + size * 0.35, size, DIM, 'center');
@@ -175,7 +231,52 @@ function pictureBox(src, x, y, w, h, lines, size, blink) {
   return p;
 }
 
-// The post: picture and name at the top, the text, then its images.
+// A quoted post in its own box: who, their first picture and their words.
+// What can't be shown here (a feed, a list, a deleted or blocked post, or a
+// quote with nothing to show) becomes a test card instead.
+function quoteBox(q, post, x, y, w, h, s, lines, blink) {
+  const z = (v, min) => Math.max(v * s, min);
+  const size = z(14, 11), hdr = size * 1.7;
+  g.strokeStyle = MID; g.lineWidth = 1;
+  g.strokeRect(x + 0.5, y + 0.5, w, h);
+  g.strokeRect(x + 3.5, y + 3.5, w - 6, h - 6);
+  const own = { did: post.did, rkey: post.rkey, handle: post.handle };
+  const theirs = q.kind === 'post' && (q.did || '').startsWith('did:') && q.rkey ? { did: q.did, rkey: q.rkey, handle: q.handle } : own;
+  const who = q.kind === 'post' ? `@${q.handle}` : q.kind.toUpperCase();
+  text(wrap(`QUOTE >> ${who}`, w - 16, size, 1)[0] || '', x + 9, y + size * 1.25, size, MID);
+  const ix = x + 8, iy = y + hdr, iw = w - 16, ih = h - hdr - 8;
+  if (q.kind !== 'post') {
+    const label = { missing: 'POST NOT FOUND', blocked: 'BLOCKED', detached: 'DETACHED' }[q.kind] ||
+      `${q.kind.toUpperCase()}${q.title ? `: ${q.title.toUpperCase()}` : ''}`;
+    testCard(ix, iy, iw, ih, label, 'CLICK TO OPEN POST', size, own);
+    return null;
+  }
+  const imgs = q.images || [];
+  if (!q.text && !imgs.length) {
+    testCard(ix, iy, iw, ih, q.nested ? 'QUOTES A QUOTE' : 'QUOTED POST', 'CLICK TO OPEN', size, theirs);
+    return null;
+  }
+  let pic = null, tx = ix, tw = iw;
+  if (imgs.length) {
+    const side = q.text ? Math.min(ih, iw * 0.45) : iw;
+    pic = pictureBox(imgs[0].src, ix, iy, side, ih, lines, size * 0.9, blink, theirs);
+    if (imgs.length > 1) text(`+${imgs.length - 1}`, ix + side - 6, iy + ih - 6, size * 0.9, FG, 'right');
+    tx = ix + side + 10; tw = iw - side - 10;
+  }
+  const tsize = z(16, 11), lh = tsize * 1.3;
+  const flags = [q.video && 'VIDEO', q.link && 'LINK', q.nested && 'QUOTE'].filter(Boolean);
+  const room = Math.floor((ih - (flags.length ? lh : 0)) / lh);
+  let ty = iy + tsize;
+  if (tw > 40) {
+    for (const line of wrap(q.text || '', tw, tsize, room)) { text(line, tx, ty, tsize, FG); ty += lh; }
+    if (flags.length) text(flags.map(f => `[+${f}]`).join(' '), tx, iy + ih - 4, z(12, 10), MID);
+  }
+  cards.push({ x, y, w, h, ...theirs, quote: true });
+  return pic;
+}
+
+// The post: picture and name at the top, the text, then its images and the
+// post it quotes.
 function postPanel(post, x, y, w, h, s, lines, blink) {
   const z = (v, min) => Math.max(v * s, min);
   frame(x, y, w, h, Math.round(26 * s));
@@ -196,11 +297,12 @@ function postPanel(post, x, y, w, h, s, lines, blink) {
   if (flags.length) text(flags.map(f => `[${f}]`).join(' '), tx, y + m + z(92, 65), z(14, 11), MID);
 
   const imgs = post.images || [];
-  const imgH = imgs.length ? Math.min(240 * s, h * 0.4) : 0;
+  const q = post.quote && typeof post.quote === 'object' ? post.quote : null;
+  const imgH = imgs.length || q ? Math.min(240 * s, h * 0.4) : 0;
   const imgTop = bottom - imgH;
   const size = z(19, 13), lh = size * 1.3;
   let ty = y + m + av + 34 * s;
-  const room = Math.floor((imgTop - (imgs.length ? 14 * s : 0) - ty + lh * 0.7) / lh);
+  const room = Math.floor((imgTop - (imgH ? 14 * s : 0) - ty + lh * 0.7) / lh);
   let body = post.text || '';
   if (post.link) body += `${body ? '\n' : ''}>> ${post.link.title}`;
   for (const line of wrap(body || '(no text)', iw, size, room)) {
@@ -208,15 +310,22 @@ function postPanel(post, x, y, w, h, s, lines, blink) {
     ty += lh;
   }
   let main = null;
+  const gap = 12 * s, own = { did: post.did, rkey: post.rkey, handle: post.handle };
+  const imgW = q ? (imgs.length ? (iw - gap) * 0.5 : 0) : iw;
   if (imgs.length) {
-    const gap = 12 * s, cw = (iw - gap * (imgs.length - 1)) / imgs.length;
+    const cw = (imgW - gap * (imgs.length - 1)) / imgs.length;
     imgs.forEach((im, i) => {
-      const p = pictureBox(im.src, ix + i * (cw + gap), imgTop, cw, imgH, lines, 12 * s, blink);
+      const p = pictureBox(im.src, ix + i * (cw + gap), imgTop, cw, imgH, lines, 12 * s, blink, own);
       if (i === 0) main = p;
     });
   }
+  let quotePic = null;
+  if (q) {
+    const qx = imgs.length ? ix + imgW + gap : ix;
+    quotePic = quoteBox(q, post, qx, imgTop, ix + iw - qx, imgH, s, lines, blink);
+  }
   reseau(x + 6, y + 6, w - 12, h - 12, Math.round(54 * s));
-  return main || avPic;
+  return main || quotePic || avPic;
 }
 
 function readouts(post, pic, x, y, size, cols) {
@@ -247,7 +356,8 @@ export function draw(ctx, st) {
   g.textBaseline = 'alphabetic';
   const keys = st.keys, n = keys.length, sel = st.sel;
   const post = n ? st.feed.get(keys[sel]) : null;
-  const hits = { bars: [] };
+  cards = [];
+  const hits = { bars: [], cards };
   const header = st.mode === 'full' || st.col;
 
   if (st.mode === 'full') {
