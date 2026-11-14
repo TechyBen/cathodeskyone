@@ -281,6 +281,13 @@
       e.preventDefault();
       setFull(false);
     } else {
+      // The key landed on the page (after clicking the monitor button, say):
+      // pass it on to the terminal as well as giving it the focus back.
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        post({ type: 'cathodesky:key', code: e.code });
+      }
       frame.focus();
     }
   }
@@ -396,8 +403,9 @@
 
   let queued = false, postsTimer = 0;
   function onMutations() {
-    clearTimeout(postsTimer);
-    postsTimer = setTimeout(sendPosts, 700);
+    // At most every 0.7 s, even while the page never stops changing (a
+    // playing video, a spinner), so the list can't be held off for ever.
+    if (!postsTimer) postsTimer = setTimeout(() => { postsTimer = 0; sendPosts(); }, 700);
     if (queued) return;
     queued = true;
     requestAnimationFrame(() => { queued = false; sweep(); });

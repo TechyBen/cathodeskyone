@@ -187,6 +187,7 @@ addEventListener('message', e => {
   else if (m === 'cathodesky:calm') setMode('behind');
   else if (m?.type === 'cathodesky:posts' && Array.isArray(m.keys)) setKeys(m.keys.filter(k => typeof k === 'string'));
   else if (m?.type === 'cathodesky:select' && typeof m.key === 'string') select(m.key);
+  else if (m?.type === 'cathodesky:key' && typeof m.code === 'string') onKey(m.code);
   else if (m?.type === 'cathodesky:context') {
     st.context = { kind: String(m.kind), name: String(m.name || ''), depth: +m.depth || 0, rkey: String(m.rkey || '') };
     if (st.context.kind !== 'thread') zoomStack.length = 0;
@@ -220,9 +221,9 @@ function setMode(mode) {
 addEventListener('pointerdown', () => sound.wake(), true);
 addEventListener('keydown', () => sound.wake(), true);
 
-addEventListener('keydown', e => {
+addEventListener('keydown', e => onKey(e.code, e));
+function onKey(k, e) {
   if (st.mode !== 'full') return;
-  const k = e.code;
   if (k === 'ArrowUp' || k === 'KeyW') step(-1);
   else if (k === 'ArrowDown' || k === 'KeyS') step(1);
   else if (k === 'PageUp') step(-10);
@@ -241,8 +242,8 @@ addEventListener('keydown', e => {
     if (st.zoomImg) { st.zoomImg = ''; dirty = true; } else send({ type: 'cathodesky:leave' });
   }
   else return;
-  e.preventDefault();
-});
+  e?.preventDefault();
+}
 
 let wheelAcc = 0;
 addEventListener('wheel', e => {
