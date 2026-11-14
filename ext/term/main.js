@@ -4,7 +4,8 @@
 // Enter to open one, Esc to go back.
 //
 // Sounds (sound.js) follow the feed: each shown post's reading, ticks for
-// new posts, tape reels between posts, and quiet general beeps.
+// new posts, tape reels between posts, and quiet general beeps. The voice
+// (voice.js, the CHIMERA synthesiser) then reads the post aloud.
 //
 // On its own: ?demo=1 makes up labelled placeholder posts and pictures (no
 // network); add &behind=1 to see the layout used behind the feed.
@@ -15,6 +16,7 @@ import { whenLoaded } from './picture.js';
 import { draw, BARS } from './screen.js';
 import { demoPosts } from './demo.js';
 import { Sound } from './sound.js';
+import { Voice } from './voice.js';
 
 const q = new URLSearchParams(location.search);
 const saver = q.has('saver');
@@ -26,9 +28,11 @@ const st = {
   keys: [], sel: 0, feed: null, lines: q.has('lines'), blink: false,
   col: null, light: false, W: 1000, H: 750,
 };
-const cfg = { glow: 55, lines: st.lines, fps: 20, sound: true, vol: 35 };
+const cfg = { glow: 55, lines: st.lines, fps: 20, sound: true, voice: true, vol: 35 };
 const sound = new Sound();
 sound.set({ on: cfg.sound, vol: cfg.vol / 100, quiet: st.mode === 'full' ? 1 : 0.7 });
+const voice = new Voice();
+voice.set({ on: cfg.voice, vol: cfg.vol / 100, quiet: st.mode === 'full' ? 1 : 0.7 });
 let dirty = true, hits = { bars: [] };
 
 const buffer = document.createElement('canvas');
@@ -54,6 +58,7 @@ function send(msg) {
 const heard = new Set();
 let readingKey = '', readingTimer = 0;
 function queueReading(wait = 0) {
+  voice.hush();
   readingKey = st.keys[st.sel] || '';
   clearTimeout(readingTimer);
   readingTimer = setTimeout(playReading, wait);
@@ -65,6 +70,7 @@ function playReading() {
   const fields = BARS.map(b => b[1]);
   const maxes = fields.map(f => Math.max(0, ...st.keys.map(k => st.feed.get(k)?.[f] || 0)));
   sound.reading(fields.map(f => p[f]), maxes);
+  voice.say(p.text, p.did, sound.ready ? 0.45 : 0);
 }
 function busy() {
   const likes = st.keys.map(k => st.feed.get(k)).filter(p => p && !p.error).map(p => Math.log1p(p.likes));
@@ -153,6 +159,7 @@ addEventListener('message', e => {
     Object.assign(cfg, m.cfg);
     st.lines = !!cfg.lines;
     sound.set({ on: !!cfg.sound, vol: (+cfg.vol || 0) / 100 });
+    voice.set({ on: !!cfg.voice, vol: (+cfg.vol || 0) / 100 });
     dirty = true;
   }
 });
@@ -161,6 +168,7 @@ function setMode(mode) {
   if (st.mode === mode) return;
   st.mode = mode;
   sound.set({ quiet: mode === 'full' ? 1 : 0.7 });
+  voice.set({ quiet: mode === 'full' ? 1 : 0.7 });
   sound.wind(0.7);
   resize();
 }
@@ -243,4 +251,4 @@ function testLayout(l, w, light) {
   layoutCol();
   dirty = true;
 }
-window.__cathode = { st, cfg, sound, BARS, setKeys, select, setMode, testLayout };
+window.__cathode = { st, cfg, sound, voice, BARS, setKeys, select, setMode, testLayout };

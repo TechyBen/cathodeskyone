@@ -55,6 +55,8 @@ Medium-low and all synthesised with Web Audio, no samples. It starts once you've
 - **Tape reels**: a motor whine, rumble and a soft brake clunk when moving between posts or switching to and from the full terminal, and idly every half minute or so.
 - **General beeps**: single and double beeps, little falling three-note figures and bursts of telemetry chatter now and then, more often when the posts on the page are busier.
 
+**The voice**: after its reading, each post shown is read aloud by [CHIMERA](https://github.com/jamesondh/chimera-vocal-synth), a physically modelled voice synthesiser (a simulated airway with lungs, vocal folds, tongue and lips; no samples). English text goes to phonemes through the CMU Pronouncing Dictionary, then to articulatory gestures, and the airway runs in an AudioWorklet. Each author gets their own body (male, female, child or between) and pitch from their account's DID, so the same person always sounds the same, played through a small-speaker filter. Links, @, # and emoji are left out, and long posts stop at a sentence end after about 320 characters. Moving to another post cuts it off. **Read posts aloud** in the popup turns it off.
+
 Behind the feed it plays a little quieter than in the full terminal. **Sound** and **Volume** (35% by default) are in the popup.
 
 ## Privacy
@@ -67,7 +69,8 @@ Only the addresses of the posts on the page (handle and record key) go from bsky
 |---|---|---|
 | Terminal behind Bluesky | on | Switching off restores Bluesky exactly |
 | Sound | on | Beeps, post readings, tape reels |
-| Volume | 35% | |
+| Read posts aloud | on | The CHIMERA voice |
+| Volume | 35% | Sound and voice |
 | Settle time | 1.5 s | How long the mouse rests on a post before the terminal shows it |
 | Pictures as traced lines | off | |
 | Terminal glow | 55% | Brightness behind the feed |
@@ -86,5 +89,6 @@ Then open `http://localhost:8202/term/index.html?demo=1` for made-up, labelled d
 ## Files
 
 - `ext/content.js`, `content.css`: the iframe behind bsky.app, the see-through panels and glass (as in skytreeone), reading the posts on the page, the settle timer, the monitor button, full screen, opening threads.
-- `ext/term/`: the terminal page. `main.js` (state, messages, keys, loop), `feed.js` (fetching posts), `picture.js` (fetching and processing pictures), `screen.js` (the layouts and drawing), `crt.js` (the tube shader), `sound.js` (the sounds), `demo.js`.
+- `ext/term/`: the terminal page. `main.js` (state, messages, keys, loop), `feed.js` (fetching posts), `picture.js` (fetching and processing pictures), `screen.js` (the layouts and drawing), `crt.js` (the tube shader), `sound.js` (the sounds), `voice.js` (reading posts aloud), `demo.js`.
+- `ext/term/voice/`: CHIMERA's engine (`chimera.wasm`), its AudioWorklet (`worklet.js`) and the CMU dictionary, built by `tools/build_voice.sh` from a checkout of [chimera-vocal-synth](https://github.com/jamesondh/chimera-vocal-synth) (MIT; licences alongside).
 - `tools/serve.py` (test server), `tools/make_icons.py` (the icon).

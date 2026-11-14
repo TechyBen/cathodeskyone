@@ -1,0 +1,1 @@
+Built from chimera-vocal-synth a5d22be (2026-11-14) with tools/build_voice.sh.
