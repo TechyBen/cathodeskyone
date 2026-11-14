@@ -16,6 +16,8 @@ git clone https://github.com/TechyBen/cathodeskyone
 
 Then in Chrome or Edge, open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick the `ext` folder. Open bsky.app. There's no build step.
 
+**Example terminal (demo posts)** in the toolbar popup opens the full terminal in its own tab with made-up posts, no feed needed.
+
 If skytreeone or fightskyone is installed too, switch the others off in their popups: each one puts a scene behind the page.
 
 ## Behind the feed

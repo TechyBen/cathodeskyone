@@ -30,3 +30,9 @@ document.getElementById('full').addEventListener('click', async () => {
     note.textContent = 'Open bsky.app in this tab first.';
   }
 });
+
+// The example: the terminal in its own tab with made-up demo posts, no feed or network needed.
+document.getElementById('demo').addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('term/index.html?demo=1') });
+  window.close();
+});
