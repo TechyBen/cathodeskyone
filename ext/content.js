@@ -37,6 +37,8 @@
     frame.id = 'cathodesky-frame';
     frame.setAttribute('aria-hidden', 'true');
     frame.tabIndex = -1;
+    // Sound starts once you've clicked or typed on the page.
+    frame.allow = 'autoplay';
     veil = document.createElement('div');
     veil.id = 'cathodesky-veil';
     glass = document.createElement('div');

@@ -1,4 +1,4 @@
-const UNITS = { delay: ' s', glow: '%', glass: '%', blur: ' px', fps: ' fps' };
+const UNITS = { vol: '%', delay: ' s', glow: '%', glass: '%', blur: ' px', fps: ' fps' };
 
 chrome.storage.sync.get(CATHODESKY_DEFAULTS).then(cfg => {
   for (const key of Object.keys(CATHODESKY_DEFAULTS)) {

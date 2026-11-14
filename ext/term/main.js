@@ -3,6 +3,9 @@
 // page; in full screen it takes the keyboard: up and down through the posts,
 // Enter to open one, Esc to go back.
 //
+// Sounds (sound.js) follow the feed: each shown post's reading, ticks for
+// new posts, tape reels between posts, and quiet general beeps.
+//
 // On its own: ?demo=1 makes up labelled placeholder posts and pictures (no
 // network); add &behind=1 to see the layout used behind the feed.
 
@@ -11,6 +14,7 @@ import { Feed } from './feed.js';
 import { whenLoaded } from './picture.js';
 import { draw, BARS } from './screen.js';
 import { demoPosts } from './demo.js';
+import { Sound } from './sound.js';
 
 const q = new URLSearchParams(location.search);
 const saver = q.has('saver');
@@ -22,7 +26,9 @@ const st = {
   keys: [], sel: 0, feed: null, lines: q.has('lines'), blink: false,
   col: null, light: false, W: 1000, H: 750,
 };
-const cfg = { glow: 55, lines: st.lines, fps: 20 };
+const cfg = { glow: 55, lines: st.lines, fps: 20, sound: true, vol: 35 };
+const sound = new Sound();
+sound.set({ on: cfg.sound, vol: cfg.vol / 100, quiet: st.mode === 'full' ? 1 : 0.7 });
 let dirty = true, hits = { bars: [] };
 
 const buffer = document.createElement('canvas');
@@ -34,20 +40,48 @@ if (!crt) {
   buffer.id = 'view';
 }
 
-st.feed = new Feed(() => { dirty = true; });
+st.feed = new Feed(() => { dirty = true; busy(); playReading(); });
 whenLoaded(() => { dirty = true; });
 
 function send(msg) {
   if (saver && PARENT && window.parent !== window) window.parent.postMessage(msg, PARENT);
 }
 
+// --- sounds that follow the feed ---------------------------------------------------
+// The shown post's reading (three blips for likes, replies, reposts) plays
+// once it has settled and been fetched; new posts tick as they arrive; the
+// general beeps come faster the busier the page is.
+const heard = new Set();
+let readingKey = '', readingTimer = 0;
+function queueReading(wait = 0) {
+  readingKey = st.keys[st.sel] || '';
+  clearTimeout(readingTimer);
+  readingTimer = setTimeout(playReading, wait);
+}
+function playReading() {
+  const p = readingKey && st.feed.get(readingKey);
+  if (!p || p.error || readingKey !== st.keys[st.sel]) return;
+  readingKey = '';
+  const fields = BARS.map(b => b[1]);
+  const maxes = fields.map(f => Math.max(0, ...st.keys.map(k => st.feed.get(k)?.[f] || 0)));
+  sound.reading(fields.map(f => p[f]), maxes);
+}
+function busy() {
+  const likes = st.keys.map(k => st.feed.get(k)).filter(p => p && !p.error).map(p => Math.log1p(p.likes));
+  sound.activity = likes.length ? Math.min(1, likes.reduce((a, b) => a + b, 0) / likes.length / Math.log1p(2000)) : 0;
+}
+
 // --- the post list ------------------------------------------------------------
 function setKeys(keys) {
+  const fresh = keys.filter(k => !heard.has(k));
+  fresh.forEach(k => heard.add(k));
+  if (fresh.length && heard.size > fresh.length) sound.data(fresh.length);
   const cur = st.keys[st.sel];
   st.keys = keys.slice(0, 200);
   const i = st.keys.indexOf(cur);
   st.sel = i >= 0 ? i : Math.min(st.sel, Math.max(0, st.keys.length - 1));
   st.feed.want(st.keys);
+  busy();
   dirty = true;
 }
 function select(key) {
@@ -56,11 +90,15 @@ function select(key) {
   st.sel = i;
   st.feed.want([key]);
   dirty = true;
+  sound.wind(0.3);
+  queueReading(320);
 }
 function step(d) {
   if (!st.keys.length) return;
   st.sel = (st.sel + d + st.keys.length) % st.keys.length;
   dirty = true;
+  sound.wind(Math.abs(d) > 1 ? 0.5 : 0.22);
+  queueReading(Math.abs(d) > 1 ? 520 : 260);
 }
 
 if (q.has('demo')) {
@@ -101,6 +139,7 @@ function layoutCol() {
 addEventListener('message', e => {
   if (!saver || e.source !== window.parent || e.origin !== PARENT) return;
   const m = e.data;
+  sound.wake();
   if (m === 'cathodesky:full') setMode('full');
   else if (m === 'cathodesky:calm') setMode('behind');
   else if (m?.type === 'cathodesky:posts' && Array.isArray(m.keys)) setKeys(m.keys.filter(k => typeof k === 'string'));
@@ -113,6 +152,7 @@ addEventListener('message', e => {
   } else if (m?.type === 'cathodesky:cfg' && m.cfg) {
     Object.assign(cfg, m.cfg);
     st.lines = !!cfg.lines;
+    sound.set({ on: !!cfg.sound, vol: (+cfg.vol || 0) / 100 });
     dirty = true;
   }
 });
@@ -120,10 +160,16 @@ addEventListener('message', e => {
 function setMode(mode) {
   if (st.mode === mode) return;
   st.mode = mode;
+  sound.set({ quiet: mode === 'full' ? 1 : 0.7 });
+  sound.wind(0.7);
   resize();
 }
 
 // --- full screen controls -----------------------------------------------------------
+// Audio may only start after a click or key press.
+addEventListener('pointerdown', () => sound.wake(), true);
+addEventListener('keydown', () => sound.wake(), true);
+
 addEventListener('keydown', e => {
   if (st.mode !== 'full') return;
   const k = e.code;
@@ -170,6 +216,7 @@ function frame(now) {
   const fps = st.mode === 'full' ? 60 : Math.max(5, cfg.fps);
   if (now - last < 1000 / fps - 2) return;
   last = now;
+  sound.tick();
   const blink = Math.floor(now / 500) % 2 === 0;
   if (blink !== st.blink && now - blinkAt > 400) { st.blink = blink; blinkAt = now; dirty = true; }
   if (dirty) {
@@ -196,4 +243,4 @@ function testLayout(l, w, light) {
   layoutCol();
   dirty = true;
 }
-window.__cathode = { st, cfg, BARS, setKeys, select, setMode, testLayout };
+window.__cathode = { st, cfg, sound, BARS, setKeys, select, setMode, testLayout };

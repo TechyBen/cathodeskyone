@@ -45,6 +45,18 @@ If skytreeone or fightskyone is installed too, switch the others off in their po
 - **Readouts** along the bottom: characters, words, links, tags, mentions, language; the picture's average level, hue and saturation; the stretch it got (`L011=000 H254=255`: input level 11 went to black, 254 to white); the post's day of the year and time, large, and its date.
 - **The tube**: drawn in 2D, then through a WebGL shader with one colour of phosphor, glow, scanlines, line jitter, grain, flicker, a slow rolling band, vignette and, in full screen, a curved face.
 
+## Sound
+
+Medium-low and all synthesised with Web Audio, no samples. It starts once you've clicked or typed on the page (browsers don't allow sound before that).
+
+- **Room tone**: a faint mains hum and tape hiss.
+- **A reading of each post shown**: three blips for likes, replies and reposts, each pitched over two octaves by its share of the biggest on the page (log scale).
+- **New posts**: a quiet tick for each one that arrives (up to a dozen at once).
+- **Tape reels**: a motor whine, rumble and a soft brake clunk when moving between posts or switching to and from the full terminal, and idly every half minute or so.
+- **General beeps**: single and double beeps, little falling three-note figures and bursts of telemetry chatter now and then, more often when the posts on the page are busier.
+
+Behind the feed it plays a little quieter than in the full terminal. **Sound** and **Volume** (35% by default) are in the popup.
+
 ## Privacy
 
 Only the addresses of the posts on the page (handle and record key) go from bsky.app to the terminal. It fetches the posts from Bluesky's public API and the pictures from Bluesky's CDN. Nothing needs a login, and nothing is stored or sent anywhere else.
@@ -54,6 +66,8 @@ Only the addresses of the posts on the page (handle and record key) go from bsky
 | Setting | Default | |
 |---|---|---|
 | Terminal behind Bluesky | on | Switching off restores Bluesky exactly |
+| Sound | on | Beeps, post readings, tape reels |
+| Volume | 35% | |
 | Settle time | 1.5 s | How long the mouse rests on a post before the terminal shows it |
 | Pictures as traced lines | off | |
 | Terminal glow | 55% | Brightness behind the feed |
@@ -72,5 +86,5 @@ Then open `http://localhost:8202/term/index.html?demo=1` for made-up, labelled d
 ## Files
 
 - `ext/content.js`, `content.css`: the iframe behind bsky.app, the see-through panels and glass (as in skytreeone), reading the posts on the page, the settle timer, the monitor button, full screen, opening threads.
-- `ext/term/`: the terminal page. `main.js` (state, messages, keys, loop), `feed.js` (fetching posts), `picture.js` (fetching and processing pictures), `screen.js` (the layouts and drawing), `crt.js` (the tube shader), `demo.js`.
+- `ext/term/`: the terminal page. `main.js` (state, messages, keys, loop), `feed.js` (fetching posts), `picture.js` (fetching and processing pictures), `screen.js` (the layouts and drawing), `crt.js` (the tube shader), `sound.js` (the sounds), `demo.js`.
 - `tools/serve.py` (test server), `tools/make_icons.py` (the icon).
