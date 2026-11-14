@@ -18,6 +18,8 @@ export const BARS = [['LIKES', 'likes'], ['REPLIES', 'replies'], ['REPOSTS', 're
 let g = null;
 // Clickable test cards drawn this frame: where, and which post they open.
 let cards = [];
+// Pictures drawn this frame, which can be clicked to zoom them.
+let pics = [];
 
 function font(size, weight = '') { g.font = `${weight} ${Math.round(size)}px ${FONT}`; }
 function text(s, x, y, size, color = FG, align = 'left') {
@@ -228,7 +230,36 @@ function pictureBox(src, x, y, w, h, lines, size, blink, target) {
   const dw = p.w * s, dh = p.h * s;
   g.imageSmoothingEnabled = false;
   g.drawImage(lines ? p.lines : p.grey, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  pics.push({ x, y, w, h, src });
   return p;
+}
+
+// A clicked picture, large, over the main frame: processed again at about
+// four times the size, still cut to 16 grey levels (or traced). Clicking
+// anywhere goes back.
+function zoomView(src, alt, x, y, w, h, lines, blink) {
+  g.fillStyle = '#000';
+  g.fillRect(x, y, w, h);
+  frame(x, y, w, h);
+  const p = picture(src, 420);
+  text('IMAGE ZOOM', x + 16, y + 30, 16, MID);
+  text('CLICK TO RETURN', x + w - 16, y + 30, 13, DIM, 'right');
+  const ix = x + 16, iy = y + 44, iw = w - 32, ih = h - 44 - (alt ? 56 : 16);
+  if (p.state !== 'ok') {
+    const msg = p.state === 'loading' ? `SCANNING${blink ? '_' : ' '}` : 'NO SIGNAL';
+    text(msg, x + w / 2, iy + ih / 2, 20, MID, 'center');
+  } else {
+    const s = Math.min(iw / p.w, ih / p.h);
+    const dw = p.w * s, dh = p.h * s, dx = ix + (iw - dw) / 2, dy = iy + (ih - dh) / 2;
+    g.imageSmoothingEnabled = false;
+    g.drawImage(lines ? p.lines : p.grey, dx, dy, dw, dh);
+    g.strokeStyle = MID;
+    g.strokeRect(dx - 3.5, dy - 3.5, dw + 7, dh + 7);
+    text(`${p.w}x${p.h}  L${pad(p.lo, 3)}=000 H${pad(p.hi, 3)}=255`, x + w - 16, y + h - 14, 12, DIM, 'right');
+  }
+  if (alt) wrap(`ALT: ${alt}`, iw, 14, 2).forEach((l, i) => text(l, ix, y + h - 40 + i * 17, 14, MID));
+  reseau(x + 6, y + 6, w - 12, h - 12, 54);
+  return p.state === 'ok' ? p : null;
 }
 
 // A quoted post in its own box: who, their first picture and their words.
@@ -381,7 +412,8 @@ export function draw(ctx, st) {
   const keys = st.keys, n = keys.length, sel = st.sel;
   const post = n ? st.feed.get(keys[sel]) : null;
   cards = [];
-  const hits = { bars: [], cards, zoom: [] };
+  pics = [];
+  const hits = { bars: [], cards, pics, zoom: [] };
   const header = st.mode === 'full' || st.col;
 
   if (st.mode === 'full') {
@@ -389,7 +421,11 @@ export function draw(ctx, st) {
     text(post?.handle ? post.handle.toUpperCase().slice(0, 18) : 'NO SIGNAL', 470, 30, 27, FG, 'center');
     text(n ? `${pad(sel + 1, 5)}.${pad(n, 2)}(1)` : '00000.00(0)', 994, 30, 27, FG, 'right');
     text(post?.rkey ? post.rkey.toUpperCase().slice(0, 13) : '', 994, 58, 22, FG, 'right');
-    const pic = postPanel(n ? post : null, 62, 44, 650, 640, 1, st.lines, st.blink);
+    let pic = postPanel(n ? post : null, 62, 44, 650, 640, 1, st.lines, st.blink);
+    if (st.zoomImg) {
+      const all = [...(post?.images || []), ...(post?.quote?.images || [])];
+      pic = zoomView(st.zoomImg, all.find(i => i.src === st.zoomImg)?.alt || '', 62, 44, 650, 640, st.lines, st.blink) || pic;
+    }
     wedge(8, 44, 40, 640, pic ? Math.round(Math.min(1, Math.max(0, (pic.mean - pic.lo) / (pic.hi - pic.lo))) * (LEVELS - 1)) : -1);
     const bx = 742, bw = 236;
     zoomButtons(bx, 68, st.context, !!post && !post.error && !post.demo, hits);

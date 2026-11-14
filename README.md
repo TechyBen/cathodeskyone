@@ -33,6 +33,7 @@ If skytreeone or fightskyone is installed too, switch the others off in their po
 | Up / Down, W / S, mouse wheel | Previous / next post |
 | Page Up / Page Down, Home / End | Ten at a time, first, last |
 | Click a bar | That post |
+| Click a picture | See it large (processed again at about four times the size); click anywhere or Esc to go back |
 | Click the main frame | Zoom into the shown post's thread |
 | **+** / **−** (buttons or keys) on the home feed | Next / previous feed tab (Following, Discover, your pinned feeds), round and round |
 | **+** in a thread | Zoom into the selected reply's thread |
@@ -64,7 +65,7 @@ Medium-low and all synthesised with Web Audio, no samples. It starts once you've
 - **Tape reels**: a motor whine, rumble and a soft brake clunk when moving between posts or switching to and from the full terminal, and idly every half minute or so.
 - **General beeps**: single and double beeps, little falling three-note figures and bursts of telemetry chatter now and then, more often when the posts on the page are busier.
 
-**The voice**: after its reading, each post shown is read aloud by [CHIMERA](https://github.com/jamesondh/chimera-vocal-synth), a physically modelled voice synthesiser (a simulated airway with lungs, vocal folds, tongue and lips; no samples). English text goes to phonemes through the CMU Pronouncing Dictionary, then to articulatory gestures, and the airway runs in an AudioWorklet. Each author gets their own body (male, female, child or between) and pitch from their account's DID, so the same person always sounds the same, played through a small-speaker filter. Links, @, # and emoji are left out, and long posts stop at a sentence end after about 320 characters. Moving to another post cuts it off. In the popup: **Read posts aloud** turns it off; **Voice** is each author their own, voice A (adult male) or voice B (adult female) for every post; **Style** is natural, or robotic (flat, steady pitch and no accents: the nearest CHIMERA gets to a Vocaloid sound, which it doesn't have as a preset yet).
+**The voice**: after its reading, each post shown is read aloud by [CHIMERA](https://github.com/jamesondh/chimera-vocal-synth), a physically modelled voice synthesiser (a simulated airway with lungs, vocal folds, tongue and lips; no samples). English text goes to phonemes through the CMU Pronouncing Dictionary, then to articulatory gestures, and the airway runs in an AudioWorklet. Each author gets their own body (male, female, child or between) and pitch from their account's DID, so the same person always sounds the same, played through a small-speaker filter. Links, @, # and emoji are left out, and long posts stop at a sentence end after about 320 characters. Moving to another post cuts it off. In the popup: **Read posts aloud** turns it off; **Voice** is each author their own, or voice low or voice high for every post; **Style** is natural, or robotic (flat, steady pitch and no accents: the nearest CHIMERA gets to a Vocaloid sound, which it doesn't have as a preset yet).
 
 Behind the feed it plays a little quieter than in the full terminal. **Sound** and **Volume** (35% by default) are in the popup.
 
@@ -79,7 +80,7 @@ Only the addresses of the posts on the page (handle and record key) go from bsky
 | Terminal behind Bluesky | on | Switching off restores Bluesky exactly |
 | Sound | on | Beeps, post readings, tape reels |
 | Read posts aloud | on | The CHIMERA voice |
-| Voice | each author their own | or voice A (male), voice B (female) |
+| Voice | each author their own | or voice low, voice high |
 | Style | natural | or robotic |
 | Volume | 35% | Sound and voice |
 | Settle time | 1.5 s | How long the mouse rests on a post before the terminal shows it |

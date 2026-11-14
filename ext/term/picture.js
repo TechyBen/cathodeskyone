@@ -11,13 +11,16 @@ let onLoad = () => {};
 
 export function whenLoaded(fn) { onLoad = fn; }
 
-export function picture(src) {
-  let p = cache.get(src);
+// `max`: the longest side to process at (a zoomed picture is done again,
+// larger, still cut to 16 grey levels).
+export function picture(src, max = MAX) {
+  const key = `${max}|${src}`;
+  let p = cache.get(key);
   if (!p) {
     p = { state: 'loading' };
-    cache.set(src, p);
+    cache.set(key, p);
     source(src)
-      .then(bmp => { analyse(p, bmp); p.state = 'ok'; })
+      .then(bmp => { analyse(p, bmp, max); p.state = 'ok'; })
       .catch(() => { p.state = 'error'; })
       .finally(() => onLoad());
   }
@@ -33,8 +36,8 @@ async function source(src) {
   return createImageBitmap(await r.blob());
 }
 
-function analyse(p, bmp) {
-  const s = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+function analyse(p, bmp, max) {
+  const s = Math.min(1, max / Math.max(bmp.width, bmp.height));
   const w = Math.max(1, Math.round(bmp.width * s)), h = Math.max(1, Math.round(bmp.height * s));
   const c = new OffscreenCanvas(w, h);
   const g = c.getContext('2d', { willReadFrequently: true });

@@ -8,7 +8,8 @@
 //
 // Who speaks (`who`): each author their own body (male, female or child mix)
 // and pitch from a hash of their DID, so the same person always sounds the
-// same; or voice A (adult male) or voice B (adult female) for every post.
+// same; or voice low (an adult male body) or voice high (an adult female
+// body) for every post.
 // Style: natural speech, or robotic: flat, steady pitch with no accents,
 // a touch slower (CHIMERA has no Vocaloid preset; this is the nearest). The voice
 // goes through a band-pass like a small monitor speaker. Its AudioContext is

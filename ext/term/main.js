@@ -27,6 +27,7 @@ const st = {
   mode: saver || q.has('behind') ? 'behind' : 'full',
   keys: [], sel: 0, feed: null, lines: q.has('lines'), blink: false,
   col: null, light: false, W: 1000, H: 750,
+  zoomImg: '',             // a picture clicked to see it large
   context: null,          // where Bluesky is: { kind: 'feed', name } or { kind: 'thread', depth }
 };
 const cfg = { glow: 55, lines: st.lines, fps: 20, sound: true, voice: true, voiceWho: q.get('who') || 'author', voiceStyle: q.get('style') || 'natural', vol: 35 };
@@ -128,6 +129,7 @@ function select(key) {
   let i = st.keys.indexOf(key);
   if (i < 0) { setKeys([...st.keys, key]); i = st.keys.indexOf(key); }
   st.sel = i;
+  st.zoomImg = '';
   st.feed.want([key]);
   dirty = true;
   sound.wind(0.3);
@@ -135,6 +137,7 @@ function select(key) {
 }
 function step(d) {
   if (!st.keys.length) return;
+  st.zoomImg = '';
   st.sel = (st.sel + d + st.keys.length) % st.keys.length;
   dirty = true;
   sound.wind(Math.abs(d) > 1 ? 0.5 : 0.22);
@@ -234,7 +237,9 @@ addEventListener('keydown', e => {
   else if (k === 'Enter') {
     const p = st.feed.get(st.keys[st.sel]);
     if (p && !p.error && !p.demo) send({ type: 'cathodesky:open', did: p.did, rkey: p.rkey, handle: p.handle });
-  } else if (k === 'Escape') send({ type: 'cathodesky:leave' });
+  } else if (k === 'Escape') {
+    if (st.zoomImg) { st.zoomImg = ''; dirty = true; } else send({ type: 'cathodesky:leave' });
+  }
   else return;
   e.preventDefault();
 });
@@ -261,13 +266,16 @@ addEventListener('pointermove', e => {
   const [x, y] = toScreen(e);
   const inside = b => b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h;
   const onFrame = inside(hits.frame) && st.context?.kind !== 'thread' || inside(hits.frame) && !isAnchor();
-  document.body.style.cursor = hits.zoom?.some(inside) || cardAt(x, y) ? 'pointer' : onFrame ? 'zoom-in' : '';
+  document.body.style.cursor = st.zoomImg ? 'zoom-out' : hits.zoom?.some(inside) ? 'pointer' : hits.pics?.some(inside) || onFrame ? 'zoom-in' : cardAt(x, y) ? 'pointer' : '';
 });
 addEventListener('pointerdown', e => {
   if (st.mode !== 'full') return;
   const [x, y] = toScreen(e);
+  if (st.zoomImg) { st.zoomImg = ''; dirty = true; sound.wind(0.2); return; }
   const z = hits.zoom?.find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
   if (z) { plusMinus(z.dir); return; }
+  const pic = hits.pics?.findLast(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+  if (pic) { st.zoomImg = pic.src; dirty = true; sound.wind(0.25); return; }
   const card = cardAt(x, y);
   if (card) { open(card); return; }
   for (const b of hits.bars) {

@@ -6,7 +6,7 @@ const CATHODESKY_DEFAULTS = {
   glow: 55,      // brightness of the terminal behind the feed, 0-100
   sound: true,   // beeps, the posts' readings and tape reels, medium-low
   voice: true,   // read each shown post aloud (the CHIMERA voice)
-  voiceWho: 'author',     // 'author' (each their own), 'a' (male) or 'b' (female)
+  voiceWho: 'author',     // 'author' (each their own), 'a' (voice low) or 'b' (voice high)
   voiceStyle: 'natural',  // or 'robotic'
   vol: 35,       // 0-100, sound and voice
   lines: false,  // pictures as traced outlines instead of grey levels
