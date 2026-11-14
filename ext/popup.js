@@ -21,6 +21,18 @@ chrome.storage.sync.get(CATHODESKY_DEFAULTS).then(cfg => {
   }
 });
 
+// READOUT: ask the terminal in this tab to read the shown post now.
+document.getElementById('read').addEventListener('click', async () => {
+  const note = document.getElementById('read-note');
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    const ok = await chrome.tabs.sendMessage(tab.id, 'cathodesky:read');
+    note.textContent = ok ? 'Reading… (press again to stop)' : 'Turn on “Terminal behind Bluesky” first.';
+  } catch {
+    note.textContent = 'Open bsky.app in this tab first.';
+  }
+});
+
 // Full terminal: ask the content script in this tab to bring it to the front.
 document.getElementById('full').addEventListener('click', async () => {
   const note = document.getElementById('full-note');

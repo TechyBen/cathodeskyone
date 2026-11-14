@@ -517,6 +517,8 @@
     ext.storage.sync.get(CATHODESKY_DEFAULTS).then(c => { cfg = c; apply(); });
     // The popup's Full terminal button.
     ext.runtime.onMessage.addListener((msg, _sender, reply) => {
+      // The popup's READOUT button: read the shown post now.
+      if (msg === 'cathodesky:read') { post('cathodesky:read'); reply(cfg.enabled && ready); return; }
       if (msg !== 'cathodesky:full') return;
       setFull(cfg.enabled);
       reply(cfg.enabled);

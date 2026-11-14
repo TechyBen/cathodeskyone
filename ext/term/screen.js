@@ -383,6 +383,24 @@ function zoomButtons(x, y, ctx, can, hits) {
   text(wrap(where.toUpperCase(), 160, 13, 1)[0] || '', x + 2 * bw + 16, y + 17, 13, MID);
 }
 
+// READOUT: reads the shown post aloud now, and says what the voice is doing.
+function readoutButton(x, y, w, voice, hits) {
+  const h = 24, status = (voice?.status || 'idle').toUpperCase();
+  const busy = status === 'SPEAKING' || status === 'LOADING';
+  g.strokeStyle = FG; g.lineWidth = 1.5;
+  g.strokeRect(x + 0.5, y + 0.5, w, h);
+  g.lineWidth = 1;
+  g.strokeRect(x + 3.5, y + 3.5, w - 6, h - 6);
+  if (busy) { g.fillStyle = '#2a2e2b'; g.fillRect(x + 4, y + 4, w - 8, h - 8); }
+  g.fillStyle = FG;
+  if (status === 'SPEAKING') g.fillRect(x + 11, y + 8, 8, 8);
+  else { g.beginPath(); g.moveTo(x + 11, y + 7); g.lineTo(x + 19, y + 12); g.lineTo(x + 11, y + 17); g.fill(); }
+  text('READOUT', x + 26, y + 17, 14, FG);
+  const warn = status === 'BLOCKED' ? 'CLICK PAGE' : status;
+  text(warn, x + w - 8, y + 17, 12, status === 'IDLE' ? DIM : status === 'BLOCKED' || status === 'ERROR' ? FG : MID, 'right');
+  hits.readout = { x, y, w, h };
+}
+
 function readouts(post, pic, x, y, size, cols) {
   const words = post?.text ? post.text.trim().split(/\s+/).filter(Boolean).length : 0;
   const rows = [
@@ -428,10 +446,11 @@ export function draw(ctx, st) {
     }
     wedge(8, 44, 40, 640, pic ? Math.round(Math.min(1, Math.max(0, (pic.mean - pic.lo) / (pic.hi - pic.lo))) * (LEVELS - 1)) : -1);
     const bx = 742, bw = 236;
-    zoomButtons(bx, 68, st.context, !!post && !post.error && !post.demo, hits);
+    zoomButtons(bx, 64, st.context, !!post && !post.error && !post.demo, hits);
+    readoutButton(bx, 94, bw, st.voice, hits);
     hits.frame = { x: 62, y: 44, w: 650, h: 640 };
     BARS.forEach(([label, field], i) => {
-      hits.bars.push(barBox(bx, 122 + i * 194, bw, 146, label, field, keys, st.feed, sel, 16));
+      hits.bars.push(barBox(bx, 146 + i * 184, bw, 136, label, field, keys, st.feed, sel, 16));
     });
     readouts(post, pic, 6, 708, 15, [0, 165, 330]);
     const [t, date] = clock(post);
@@ -460,6 +479,8 @@ export function draw(ctx, st) {
     const lx = colL - 28 - lw, s = Math.max(0.55, Math.min(1, lw / 650));
     text('CTL BSKY-1 RPLA', lx, 40, 20, MID);
     text(n ? `${pad(sel + 1, 5)}.${pad(n, 2)}(1)` : '', lx + lw, 40, 20, MID, 'right');
+    const vs = st.voice?.status;
+    if (vs && vs !== 'idle') text(`VOICE: ${vs === 'blocked' ? 'CLICK PAGE' : vs.toUpperCase()}`, lx + lw / 2, 40, 14, MID, 'center');
     const pic = postPanel(n ? post : null, lx, 56, lw, H - 56 - 130, s, st.lines, st.blink);
     const [t, date] = clock(post);
     text(t, lx, H - 96, 30, FG);

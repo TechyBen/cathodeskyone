@@ -32,6 +32,17 @@ export class Voice {
     this.idle = 0;
     this.id = 0;
     this.current = '';
+    // What the voice is doing, shown on the READOUT button: idle, loading,
+    // speaking, blocked (the browser wants a click on the page first),
+    // no words (nothing in the post to say), or error (the engine didn't load).
+    this.status = 'idle';
+    this.onStatus = () => {};
+  }
+
+  setStatus(s) {
+    if (s === this.status) return;
+    this.status = s;
+    this.onStatus(s);
   }
 
   set({ on, vol, quiet, who, style }) {
@@ -40,8 +51,8 @@ export class Voice {
     if (style !== undefined) this.style = style;
     if (vol !== undefined) this.vol = vol;
     if (quiet !== undefined) this.quiet = quiet;
-    if (this.out) this.out.gain.setTargetAtTime(this.on ? this.vol * this.quiet * 1.1 : 0, this.ctx.currentTime, 0.1);
-    if (!this.on) this.stop();
+    if (this.out) this.out.gain.setTargetAtTime(this.vol * this.quiet * 1.1, this.ctx.currentTime, 0.1);
+    if (on === false) this.hush();
   }
 
   // Engine, dictionary and audio graph, once. Needs a click or key press on
@@ -95,14 +106,17 @@ export class Voice {
   }
 
   // Read a post: `who` (a DID) picks the voice. `delay` leaves room for the
-  // reading blips first. A newer post cuts off the one being read.
-  async say(text, who = '', delay = 0) {
+  // reading blips first. A newer post cuts off the one being read. `force`:
+  // READOUT asked for it, so it reads even with automatic reading off.
+  async say(text, who = '', delay = 0, force = false) {
     const id = ++this.id;
     this.stop();
+    if (!this.on && !force) return;
     const clean = tidy(text);
-    if (!this.on || !clean) return;
-    try { await this.load(); } catch { return; }
-    if (id !== this.id || !this.on) return;
+    if (!clean) { this.setStatus('no words'); return; }
+    if (!this.x) this.setStatus('loading');
+    try { await this.load(); } catch (e) { this.error = String(e?.message || e); this.setStatus('error'); return; }
+    if (id !== this.id || (!this.on && !force)) return;
     let h = 2166136261;
     for (const ch of who) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
     const pick = (h >>> 0) % 7;
@@ -116,20 +130,25 @@ export class Voice {
     let plan;
     try {
       const phrases = this.call('g2pPhrases', { text: clean });
-      if (!phrases.length) return;
+      if (!phrases.length) { this.setStatus('no words'); return; }
       this.node.port.postMessage({ type: 'body', body });
       plan = this.call('planPhrases', {
         phrases: phrases.map(p => ({ segments: p.segments, intonation: robotic ? 'flat' : p.intonation, pause: p.pause })),
         options: robotic ? { body, t0: 0, rate: 0.95, f0, intonation: 'flat', accent: 0 } : { body, t0: 0, rate: 1.05, f0 },
       });
-    } catch { return; }
+    } catch (e) { this.error = String(e?.message || e); this.setStatus('error'); return; }
     await new Promise(r => setTimeout(r, delay * 1000));
-    if (id !== this.id || !this.on) return;
+    if (id !== this.id || (!this.on && !force)) return;
     clearTimeout(this.idle);
     await this.ctx.resume().catch(() => {});
-    if (this.ctx.state !== 'running') return;
+    if (this.ctx.state !== 'running') { this.setStatus('blocked'); return; }
     this.node.port.postMessage({ type: 'schedule', gestures: plan.gestures, segments: plan.segments, end: plan.end, id, replace: true });
-    this.idle = setTimeout(() => { if (id === this.id) this.ctx.suspend(); }, (plan.end + 0.8) * 1000);
+    this.setStatus('speaking');
+    this.idle = setTimeout(() => {
+      if (id !== this.id) return;
+      this.ctx.suspend();
+      this.setStatus('idle');
+    }, (plan.end + 0.8) * 1000);
   }
 
   // Stop now and forget any post still being prepared.
@@ -140,6 +159,7 @@ export class Voice {
 
   stop() {
     clearTimeout(this.idle);
+    if (this.status === 'speaking' || this.status === 'loading') this.setStatus('idle');
     if (!this.node) return;
     this.node.port.postMessage({ type: 'stopSpeech' });
     this.idle = setTimeout(() => this.ctx.suspend(), 600);

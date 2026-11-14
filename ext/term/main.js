@@ -25,7 +25,7 @@ const view = document.getElementById('view');
 
 const st = {
   mode: saver || q.has('behind') ? 'behind' : 'full',
-  keys: [], sel: 0, feed: null, lines: q.has('lines'), blink: false,
+  keys: [], sel: 0, feed: null, voice: null, lines: q.has('lines'), blink: false,
   col: null, light: false, W: 1000, H: 750,
   zoomImg: '',             // a picture clicked to see it large
   context: null,          // where Bluesky is: { kind: 'feed', name } or { kind: 'thread', depth }
@@ -34,6 +34,8 @@ const cfg = { glow: 55, lines: st.lines, fps: 20, sound: true, voice: true, voic
 const sound = new Sound();
 sound.set({ on: cfg.sound, vol: cfg.vol / 100, quiet: st.mode === 'full' ? 1 : 0.7 });
 const voice = new Voice();
+voice.onStatus = () => { dirty = true; };
+st.voice = voice;
 voice.set({ on: cfg.voice, who: cfg.voiceWho, style: cfg.voiceStyle, vol: cfg.vol / 100, quiet: st.mode === 'full' ? 1 : 0.7 });
 let dirty = true, hits = { bars: [] };
 
@@ -108,6 +110,17 @@ function zoom(dir) {
   }
   voice.hush();
   sound.wind(0.6);
+}
+
+// READOUT: read the shown post now (or stop it if it's being read), whether
+// or not automatic reading is on. The R key, the button in the full
+// terminal, and the popup's button.
+function readout() {
+  sound.wake();
+  if (voice.status === 'speaking') { voice.hush(); return; }
+  const p = st.feed.get(st.keys[st.sel]);
+  if (!p || p.error) return;
+  voice.say(p.text, p.did, 0, true);
 }
 
 function setKeys(keys) {
@@ -188,6 +201,7 @@ addEventListener('message', e => {
   else if (m?.type === 'cathodesky:posts' && Array.isArray(m.keys)) setKeys(m.keys.filter(k => typeof k === 'string'));
   else if (m?.type === 'cathodesky:select' && typeof m.key === 'string') select(m.key);
   else if (m?.type === 'cathodesky:key' && typeof m.code === 'string') onKey(m.code);
+  else if (m === 'cathodesky:read') readout();
   else if (m?.type === 'cathodesky:context') {
     st.context = { kind: String(m.kind), name: String(m.name || ''), depth: +m.depth || 0, rkey: String(m.rkey || '') };
     if (st.context.kind !== 'thread') zoomStack.length = 0;
@@ -234,6 +248,7 @@ function onKey(k, e) {
   else if (k === 'Equal' || k === 'NumpadAdd') plusMinus(1);
   else if (k === 'Minus' || k === 'NumpadSubtract') plusMinus(-1);
   else if (k === 'Backspace') zoom(-1);
+  else if (k === 'KeyR') readout();
   else if (k === 'KeyQ') open(hits.cards?.find(c => c.quote));
   else if (k === 'Enter') {
     const p = st.feed.get(st.keys[st.sel]);
@@ -267,7 +282,7 @@ addEventListener('pointermove', e => {
   const [x, y] = toScreen(e);
   const inside = b => b && x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h;
   const onFrame = inside(hits.frame) && st.context?.kind !== 'thread' || inside(hits.frame) && !isAnchor();
-  document.body.style.cursor = st.zoomImg ? 'zoom-out' : hits.zoom?.some(inside) ? 'pointer' : hits.pics?.some(inside) || onFrame ? 'zoom-in' : cardAt(x, y) ? 'pointer' : '';
+  document.body.style.cursor = st.zoomImg ? 'zoom-out' : hits.zoom?.some(inside) || inside(hits.readout) ? 'pointer' : hits.pics?.some(inside) || onFrame ? 'zoom-in' : cardAt(x, y) ? 'pointer' : '';
 });
 addEventListener('pointerdown', e => {
   if (st.mode !== 'full') return;
@@ -275,6 +290,8 @@ addEventListener('pointerdown', e => {
   if (st.zoomImg) { st.zoomImg = ''; dirty = true; sound.wind(0.2); return; }
   const z = hits.zoom?.find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
   if (z) { plusMinus(z.dir); return; }
+  const ro = hits.readout;
+  if (ro && x >= ro.x && x <= ro.x + ro.w && y >= ro.y && y <= ro.y + ro.h) { readout(); return; }
   const pic = hits.pics?.findLast(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
   if (pic) { st.zoomImg = pic.src; dirty = true; sound.wind(0.25); return; }
   const card = cardAt(x, y);
