@@ -27,6 +27,7 @@ const st = {
   mode: saver || q.has('behind') ? 'behind' : 'full',
   keys: [], sel: 0, feed: null, lines: q.has('lines'), blink: false,
   col: null, light: false, W: 1000, H: 750,
+  context: null,          // where Bluesky is: { kind: 'feed', name } or { kind: 'thread', depth }
 };
 const cfg = { glow: 55, lines: st.lines, fps: 20, sound: true, voice: true, vol: 35 };
 const sound = new Sound();
@@ -78,14 +79,37 @@ function busy() {
 }
 
 // --- the post list ------------------------------------------------------------
+// Zoom: + into the selected post's thread, - back out (Bluesky does the
+// navigating, see content.js). Coming back out, the post zoomed from is
+// selected again once it's in the list.
+const zoomStack = [];
+let returnTo = '';
+function zoom(dir) {
+  if (st.mode !== 'full') return;
+  if (dir > 0) {
+    const p = st.feed.get(st.keys[st.sel]);
+    if (!p || p.error || p.demo) return;
+    zoomStack.push(st.keys[st.sel]);
+    send({ type: 'cathodesky:zoom', dir: 1, did: p.did, rkey: p.rkey, handle: p.handle });
+  } else {
+    returnTo = st.context?.kind === 'thread' ? zoomStack.pop() || '' : '';
+    send({ type: 'cathodesky:zoom', dir: -1 });
+  }
+  voice.hush();
+  sound.wind(0.6);
+}
+
 function setKeys(keys) {
   const fresh = keys.filter(k => !heard.has(k));
   fresh.forEach(k => heard.add(k));
   if (fresh.length && heard.size > fresh.length) sound.data(fresh.length);
   const cur = st.keys[st.sel];
   st.keys = keys.slice(0, 200);
-  const i = st.keys.indexOf(cur);
+  const back = returnTo ? st.keys.indexOf(returnTo) : -1;
+  if (back >= 0) returnTo = '';
+  const i = back >= 0 ? back : st.keys.indexOf(cur);
   st.sel = i >= 0 ? i : Math.min(st.sel, Math.max(0, st.keys.length - 1));
+  if (back >= 0 || (i < 0 && st.mode === 'full')) queueReading(300);
   st.feed.want(st.keys);
   busy();
   dirty = true;
@@ -150,6 +174,11 @@ addEventListener('message', e => {
   else if (m === 'cathodesky:calm') setMode('behind');
   else if (m?.type === 'cathodesky:posts' && Array.isArray(m.keys)) setKeys(m.keys.filter(k => typeof k === 'string'));
   else if (m?.type === 'cathodesky:select' && typeof m.key === 'string') select(m.key);
+  else if (m?.type === 'cathodesky:context') {
+    st.context = { kind: String(m.kind), name: String(m.name || ''), depth: +m.depth || 0 };
+    if (st.context.kind !== 'thread') zoomStack.length = 0;
+    dirty = true;
+  }
   else if (m?.type === 'cathodesky:layout') {
     colCss = m.l >= 0 ? { l: +m.l, w: +m.w } : null;
     st.light = !!m.light;
@@ -188,6 +217,8 @@ addEventListener('keydown', e => {
   else if (k === 'Home') { st.sel = 0; dirty = true; }
   else if (k === 'End') { st.sel = Math.max(0, st.keys.length - 1); dirty = true; }
   else if (k === 'KeyL') { st.lines = !st.lines; dirty = true; }
+  else if (k === 'Equal' || k === 'NumpadAdd') zoom(1);
+  else if (k === 'Minus' || k === 'NumpadSubtract') zoom(-1);
   else if (k === 'KeyQ') open(hits.cards?.find(c => c.quote));
   else if (k === 'Enter') {
     const p = st.feed.get(st.keys[st.sel]);
@@ -217,11 +248,14 @@ function open(t) {
 addEventListener('pointermove', e => {
   if (st.mode !== 'full') return;
   const [x, y] = toScreen(e);
-  document.body.style.cursor = cardAt(x, y) ? 'pointer' : '';
+  const onZoom = hits.zoom?.some(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+  document.body.style.cursor = onZoom || cardAt(x, y) ? 'pointer' : '';
 });
 addEventListener('pointerdown', e => {
   if (st.mode !== 'full') return;
   const [x, y] = toScreen(e);
+  const z = hits.zoom?.find(b => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+  if (z) { zoom(z.dir); return; }
   const card = cardAt(x, y);
   if (card) { open(card); return; }
   for (const b of hits.bars) {

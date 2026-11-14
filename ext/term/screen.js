@@ -328,6 +328,30 @@ function postPanel(post, x, y, w, h, s, lines, blink) {
   return main || quotePic || avPic;
 }
 
+// The zoom buttons, - and +, and where Bluesky is: which feed, or how deep
+// into threads.
+function zoomButtons(x, y, ctx, can, hits) {
+  const bw = 30, bh = 24;
+  [[-1, '-'], [1, '+']].forEach(([dir, label], i) => {
+    const bx = x + i * (bw + 6);
+    const live = dir < 0 || can;
+    g.strokeStyle = live ? FG : FAINT;
+    g.lineWidth = 1.5;
+    g.strokeRect(bx + 0.5, y + 0.5, bw, bh);
+    g.lineWidth = 1;
+    g.strokeRect(bx + 3.5, y + 3.5, bw - 6, bh - 6);
+    g.fillStyle = live ? FG : FAINT;
+    g.fillRect(bx + bw / 2 - 6, y + bh / 2 - 1, 12, 2);
+    if (dir > 0) g.fillRect(bx + bw / 2 - 1, y + bh / 2 - 6, 2, 12);
+    hits.zoom.push({ x: bx, y, w: bw, h: bh, dir });
+  });
+  let where = 'NO LINK';
+  if (ctx?.kind === 'feed') where = `FEED: ${ctx.name}`;
+  else if (ctx?.kind === 'thread') where = `THREAD ${'>'.repeat(Math.min(6, ctx.depth))}`;
+  else if (ctx?.kind === 'page') where = `PAGE: ${ctx.name}`;
+  text(wrap(where.toUpperCase(), 160, 13, 1)[0] || '', x + 2 * bw + 16, y + 17, 13, MID);
+}
+
 function readouts(post, pic, x, y, size, cols) {
   const words = post?.text ? post.text.trim().split(/\s+/).filter(Boolean).length : 0;
   const rows = [
@@ -357,7 +381,7 @@ export function draw(ctx, st) {
   const keys = st.keys, n = keys.length, sel = st.sel;
   const post = n ? st.feed.get(keys[sel]) : null;
   cards = [];
-  const hits = { bars: [], cards };
+  const hits = { bars: [], cards, zoom: [] };
   const header = st.mode === 'full' || st.col;
 
   if (st.mode === 'full') {
@@ -368,8 +392,9 @@ export function draw(ctx, st) {
     const pic = postPanel(n ? post : null, 62, 44, 650, 640, 1, st.lines, st.blink);
     wedge(8, 44, 40, 640, pic ? Math.round(Math.min(1, Math.max(0, (pic.mean - pic.lo) / (pic.hi - pic.lo))) * (LEVELS - 1)) : -1);
     const bx = 742, bw = 236;
+    zoomButtons(bx, 68, st.context, !!post && !post.error && !post.demo, hits);
     BARS.forEach(([label, field], i) => {
-      hits.bars.push(barBox(bx, 92 + i * 202, bw, 160, label, field, keys, st.feed, sel, 16));
+      hits.bars.push(barBox(bx, 122 + i * 194, bw, 146, label, field, keys, st.feed, sel, 16));
     });
     readouts(post, pic, 6, 708, 15, [0, 165, 330]);
     const [t, date] = clock(post);

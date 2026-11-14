@@ -33,6 +33,8 @@ If skytreeone or fightskyone is installed too, switch the others off in their po
 | Up / Down, W / S, mouse wheel | Previous / next post |
 | Page Up / Page Down, Home / End | Ten at a time, first, last |
 | Click a bar | That post |
+| **+** (button or key) | Zoom in: the selected post's thread. Again on a reply: that reply's thread |
+| **−** (button or key) | Zoom out: back the way you came, back to the home feed, then round the feed tabs (Following, Discover, your pinned feeds) |
 | L | Pictures as grey levels or traced lines |
 | Q, or click the quote | Open the quoted post on Bluesky |
 | Click a test card | Open the post it stands in for |
@@ -41,7 +43,9 @@ If skytreeone or fightskyone is installed too, switch the others off in their po
 
 ## The screen
 
-- **Header**: the author's handle, the post's number on the page, and its record key.
+- **Header**: the author's handle, the post's number on the page, and its record key. Under it, the − and + zoom buttons and where you are (`FEED: DISCOVER`, or `THREAD >>` two threads deep).
+
+Zoom drives Bluesky itself behind the terminal (it opens the thread, goes back, clicks the next feed tab), so the bars always hold what Bluesky would show on that screen. Coming back out, the post you zoomed in from is selected again.
 - **Step wedge** (left): the 16 grey levels pictures are cut to, with a marker at the shown picture's average level.
 - **Main frame**: the profile picture, name, handle and time, the text, and up to four images (a video's still or a link card's thumbnail too), each in a line-bound box. Pictures are shrunk to about a hundred pixels a side, turned to grey, contrast-stretched between their 1st and 99th percentile and cut to 16 levels, or traced to outlines with an edge filter. Reseau crosses sit over the frame like the marks on the camera's faceplate.
 - **Quoted posts** in their own box beside or under the images: who, their first picture (`+N` for more) and their words. What the terminal can't show there (a quoted feed, list or starter pack, a deleted or blocked post, a picture that wouldn't load) becomes a **test card** instead. In the full terminal, click a quote or a test card (or press **Q** for the quote) to open that post on Bluesky.

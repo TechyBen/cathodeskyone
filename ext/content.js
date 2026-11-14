@@ -72,7 +72,7 @@
     sendLayout();
     lastPosts = '';
     sendPosts();
-    if (shown) post({ type: 'cathodesky:select', key: shown });
+    if (shownKey) post({ type: 'cathodesky:select', key: shownKey });
     if (full) { frame.focus(); post('cathodesky:full'); }
   }
 
@@ -87,15 +87,26 @@
   // Feed items and thread items carry a link to their own post; only that
   // address (author handle or DID, and record key) is passed on.
   const ITEM = '[data-testid^="feedItem-by-"], [data-testid^="postThreadItem-by-"]';
+  const POST_PATH = /^\/profile\/([\w.:%-]+)\/post\/([\w.~:-]+)/;
+  // The open thread's own post (its address is the page's).
+  const anchorKey = () => { const m = location.pathname.match(POST_PATH); return m ? `${m[1]}/${m[2]}` : ''; };
   const keyOf = item => {
+    if (item.querySelector('[data-testid$="-expanded"]') && anchorKey()) return anchorKey();
     const href = item.querySelector('a[href*="/post/"]')?.getAttribute('href') || '';
-    const m = href.match(/^\/profile\/([\w.:%-]+)\/post\/([\w.~:-]+)$/);
+    const m = href.match(POST_PATH);
     return m ? `${m[1]}/${m[2]}` : '';
+  };
+  // Only what's on the current screen: Bluesky keeps other feed tabs and the
+  // screen it came from mounted but out of view.
+  const shown = el => {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.right > 0 && r.left < innerWidth;
   };
   let lastPosts = '';
   function sendPosts() {
     const keys = [];
     for (const el of document.querySelectorAll(ITEM)) {
+      if (!shown(el)) continue;
       const k = keyOf(el);
       if (k && !keys.includes(k)) keys.push(k);
     }
@@ -103,11 +114,90 @@
     if (!keys.length || s === lastPosts) return;
     lastPosts = s;
     post({ type: 'cathodesky:posts', keys });
+    sendContext();
+  }
+
+  // --- zoom: + into a post's thread, - back out, then round the feeds -----
+  // The terminal's +/- drive Bluesky itself, so its list is always what
+  // Bluesky would show: + opens the selected post's thread (and a reply's
+  // thread from there), - goes back the way it came, back to the home feed,
+  // and on the home feed moves to the next feed tab (Following, Discover,
+  // your pinned feeds) round and round.
+  let depth = 0, lastContext = '', zoomTimer = 0;
+  const feedTabs = () => [...document.querySelectorAll('[data-testid^="homeScreenFeedTabs-selector-"][role="tab"]')]
+    .filter(t => shown(t) && !/^feeds\b/i.test(t.textContent.trim()));
+  // Bluesky marks the current tab by colour: the brightest (or darkest, on a
+  // light theme) label against the page.
+  function currentTab(tabs) {
+    const bg = luma(themeBg || 'rgb(0,0,0)');
+    let best = 0, bd = -1;
+    tabs.forEach((t, i) => {
+      const el = t.querySelector('[data-testid^="homeScreenFeedTabs-"]') || t;
+      const d = Math.abs(luma(getComputedStyle(el).color) - bg);
+      if (d > bd + 0.02) { bd = d; best = i; }
+    });
+    return best;
+  }
+  function sendContext() {
+    const path = location.pathname;
+    let c;
+    if (POST_PATH.test(path)) c = { kind: 'thread', depth: Math.max(1, depth) };
+    else if (path === '/') {
+      const tabs = feedTabs();
+      c = { kind: 'feed', name: tabs.length ? tabs[currentTab(tabs)].textContent.trim() : 'HOME' };
+    } else c = { kind: 'page', name: path.split('/').filter(Boolean)[0] || 'page' };
+    const s = JSON.stringify(c);
+    if (s === lastContext) return;
+    lastContext = s;
+    post({ type: 'cathodesky:context', ...c });
+  }
+  function go(path) {
+    history.pushState(null, '', path);
+    dispatchEvent(new PopStateEvent('popstate', { state: null }));
+  }
+  // Once the new screen has its posts, send them (and the thread's own post
+  // to show first).
+  function afterZoom(selectAnchor) {
+    clearInterval(zoomTimer);
+    const t0 = Date.now();
+    zoomTimer = setInterval(() => {
+      const ready = selectAnchor ? document.querySelector('[data-testid^="postThreadItem-by-"] [data-testid$="-expanded"]') : document.querySelector(ITEM);
+      if (!ready && Date.now() - t0 < 6000) return;
+      clearInterval(zoomTimer);
+      lastPosts = '';
+      sendPosts();
+      sendContext();
+      if (selectAnchor && anchorKey()) post({ type: 'cathodesky:select', key: anchorKey() });
+    }, 150);
+  }
+  function zoom(m) {
+    if (m.dir > 0) {
+      if (!/^did:[a-z]+:[\w.:%-]+$/.test(m.did) || !/^[\w.~:-]+$/.test(m.rkey)) return;
+      depth++;
+      go(`/profile/${m.did}/post/${m.rkey}`);
+      afterZoom(true);
+      return;
+    }
+    if (POST_PATH.test(location.pathname)) {
+      depth = Math.max(0, depth - 1);
+      if (history.length > 1) history.back(); else go('/');
+      afterZoom(false);
+    } else if (location.pathname !== '/') {
+      depth = 0;
+      go('/');
+      afterZoom(false);
+    } else {
+      const tabs = feedTabs();
+      if (tabs.length < 2) return;
+      tabs[(currentTab(tabs) + 1) % tabs.length].click();
+      // The new tab's feed may still be loading.
+      setTimeout(() => afterZoom(false), 400);
+    }
   }
 
   // The post under the mouse, shown only once the mouse has rested on it for
   // a moment, so sweeping across the feed doesn't keep switching.
-  let pending = '', shown = '', hoverTimer = 0;
+  let pending = '', shownKey = '', hoverTimer = 0;
   function onHover(e) {
     if (full) return;
     const item = e.target.closest?.(ITEM);
@@ -115,9 +205,9 @@
     if (key === pending) return;
     pending = key;
     clearTimeout(hoverTimer);
-    if (!key || key === shown) return;
+    if (!key || key === shownKey) return;
     hoverTimer = setTimeout(() => {
-      shown = key;
+      shownKey = key;
       sendPosts();
       post({ type: 'cathodesky:select', key });
     }, cfg.delay * 1000);
@@ -200,6 +290,7 @@
     const m = e.data;
     if (m?.type === 'cathodesky:ready') onReady();
     else if (m?.type === 'cathodesky:leave') setFull(false);
+    else if (m?.type === 'cathodesky:zoom' && full) zoom(m);
     else if (m?.type === 'cathodesky:open' && /^did:[a-z]+:[\w.:%-]+$/.test(m.did) && /^[\w.~:-]+$/.test(m.rkey)) {
       setFull(false);
       openThread(m.did, m.rkey, typeof m.handle === 'string' ? m.handle : '');
@@ -384,6 +475,7 @@
     clearInterval(timer);
     clearTimeout(hoverTimer);
     clearTimeout(postsTimer);
+    clearInterval(zoomTimer);
     removeEventListener('keydown', onKey, true);
     removeEventListener('focus', onPageFocus);
     removeEventListener('message', onFrameMessage);
@@ -399,7 +491,7 @@
     endThread();
     html.classList.remove('cathodesky-on', 'cathodesky-ready');
     themeBg = '';
-    lastPosts = lastLayout = pending = shown = '';
+    lastPosts = lastLayout = pending = shownKey = lastContext = '';
   }
 
   function apply(changed) {
@@ -425,6 +517,6 @@
   } else {
     Object.assign(cfg, window.CATHODESKY_TEST_CFG || {});
     apply();
-    window.__cathodeskyTest = { stop, setFull, openThread, apply: c => { Object.assign(cfg, c); apply(Object.keys(c)); } };
+    window.__cathodeskyTest = { stop, setFull, openThread, zoom, apply: c => { Object.assign(cfg, c); apply(Object.keys(c)); } };
   }
 })();
