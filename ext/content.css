@@ -1,0 +1,123 @@
+/* Everything is scoped to html.cathodesky-on so switching off restores Bluesky.
+   The page keeps Bluesky's own colour underneath, so it shows (never white)
+   until the terminal has loaded. */
+html.cathodesky-on {
+  background: var(--cathodesky-bg, transparent) !important;
+}
+
+html.cathodesky-on body,
+html.cathodesky-on #root {
+  background: transparent !important;
+}
+
+#cathodesky-frame,
+#cathodesky-veil,
+#cathodesky-glass {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  z-index: -1;
+  border: 0;
+  pointer-events: none;
+}
+
+/* Hidden until it's ready, then a slow, dim fade in. */
+#cathodesky-frame {
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  opacity: 0;
+  transition: opacity 1.5s ease-in;
+}
+
+html.cathodesky-ready #cathodesky-frame {
+  opacity: 1;
+}
+
+#cathodesky-veil {
+  left: 0;
+  right: 0;
+}
+
+#cathodesky-glass {
+  left: calc(50% - 300px);
+  width: 600px;
+}
+
+/* Sticky and fixed bars (tab bar, bottom bar) stay frosted. More specific
+   than the page-colour rule that content.js writes. */
+html.cathodesky-on #root [data-cathodesky-bar][style] {
+  background-color: var(--cathodesky-bar) !important;
+  backdrop-filter: blur(10px);
+}
+
+/* The side columns (nav, search, trending) sit straight on the terminal: give
+   all text a soft halo in the page colour so it stays readable. Inside the
+   feed panel the halo matches the panel and doesn't show. */
+html.cathodesky-on #root {
+  text-shadow: 0 0 2px var(--cathodesky-bg), 0 0 6px var(--cathodesky-bg);
+}
+
+html.cathodesky-on #root svg {
+  filter: drop-shadow(0 0 2px var(--cathodesky-bg));
+}
+
+/* Full screen: Bluesky fades out and the terminal takes the mouse and keyboard. */
+html.cathodesky-on #root,
+#cathodesky-veil,
+#cathodesky-glass {
+  transition: opacity 0.8s ease;
+}
+
+/* Opening a post: Bluesky stays hidden until the post is on the page,
+   then fades in (the transition above). */
+html.cathodesky-opening #root {
+  opacity: 0 !important;
+  pointer-events: none;
+  transition: none;
+}
+
+html.cathodesky-full #root {
+  opacity: 0;
+  pointer-events: none;
+}
+
+html.cathodesky-full #cathodesky-veil,
+html.cathodesky-full #cathodesky-glass {
+  opacity: 0;
+}
+
+html.cathodesky-full #cathodesky-frame {
+  z-index: 2147483647;
+  pointer-events: auto;
+}
+
+/* The monitor button: bottom right, above the terminal too, so it also leads back. */
+#cathodesky-btn {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 2147483647;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--cathodesky-bg) 60%, #888);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cathodesky-bg) 75%, transparent);
+  backdrop-filter: blur(6px);
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+#cathodesky-btn:hover,
+#cathodesky-btn:focus-visible {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+html.cathodesky-full #cathodesky-btn {
+  opacity: 1;
+}

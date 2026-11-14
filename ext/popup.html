@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>cathodeskyone</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f2f3f0; --fg: #1d201e; --dim: #666b67; --accent: #3d6b4c; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0f1311; --fg: #dfe6e0; --dim: #89948c; --accent: #a8d8b4; } }
+  body { margin: 0; width: 260px; padding: 14px 16px 12px; background: var(--bg); color: var(--fg);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { margin: 0 0 10px; font: 650 14px/1.2 ui-monospace, Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; }
+  label { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; margin: 10px 0; }
+  label.check { grid-template-columns: auto 1fr; }
+  input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); margin: 0; }
+  input[type="checkbox"] { accent-color: var(--accent); margin: 0; }
+  output { color: var(--dim); font-variant-numeric: tabular-nums; }
+  .note { color: var(--dim); font-size: 11px; margin: -6px 0 8px 22px; }
+  button { width: 100%; padding: 8px 10px; border: 0; border-radius: 8px; background: var(--accent); color: var(--bg);
+    font: inherit; font-weight: 650; cursor: pointer; }
+  button:hover { filter: brightness(1.08); }
+  kbd { font: 11px ui-monospace, Consolas, monospace; padding: 0 4px; border: 1px solid color-mix(in srgb, var(--dim) 50%, transparent); border-radius: 4px; }
+  hr { border: 0; border-top: 1px solid color-mix(in srgb, var(--dim) 30%, transparent); margin: 12px 0; }
+</style>
+</head>
+<body>
+<h1>cathodeskyone</h1>
+<label class="check"><input type="checkbox" id="enabled"> Terminal behind Bluesky</label>
+<hr>
+<button id="full">Full terminal</button>
+<div class="note" style="margin: 6px 0 0; text-align: center;" id="full-note">or the monitor button on bsky.app · <kbd>Esc</kbd> to return</div>
+<hr>
+<label>Settle time <output for="delay"></output><input type="range" id="delay" min="0.5" max="4" step="0.5"></label>
+<div class="note" style="margin-left: 0;">How long the mouse rests on a post before the terminal shows it.</div>
+<label class="check"><input type="checkbox" id="lines"> Pictures as traced lines</label>
+<label>Terminal glow <output for="glow"></output><input type="range" id="glow" min="10" max="100" step="5"></label>
+<hr>
+<label>Feed panel <output for="glass"></output><input type="range" id="glass" min="0" max="100" step="5"></label>
+<label>Blur <output for="blur"></output><input type="range" id="blur" min="0" max="20" step="1"></label>
+<label>Frame cap <output for="fps"></output><input type="range" id="fps" min="5" max="60" step="5"></label>
+<script src="settings.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

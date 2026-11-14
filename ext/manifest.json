@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "cathodeskyone",
+  "version": "0.1.0",
+  "description": "An old image-processing terminal behind Bluesky: posts as bars of likes, replies and reposts, pictures in low-res black and white.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://cdn.bsky.app/*",
+    "https://video.bsky.app/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://bsky.app/*"
+      ],
+      "js": [
+        "settings.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "term/*"
+      ],
+      "matches": [
+        "https://bsky.app/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "cathodeskyone",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
